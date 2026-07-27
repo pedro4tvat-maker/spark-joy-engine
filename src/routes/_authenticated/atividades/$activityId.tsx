@@ -157,6 +157,7 @@ function ActivityDetailPage() {
   const [newItem, setNewItem] = useState({ os_number: "", student_name: "", amount_sold: "", amount_received: "" });
   const [uploadCategory, setUploadCategory] = useState(DOCUMENT_CATEGORIES[0]);
   const [uploading, setUploading] = useState(false);
+  const [memberId, setMemberId] = useState("");
 
   if (isLoading) return <p className="p-6 text-sm text-muted-foreground">Carregando…</p>;
   if (!activity)
@@ -282,7 +283,7 @@ function ActivityDetailPage() {
             </p>
             <p className="text-sm text-muted-foreground">
               {activity.schools?.name ?? "Sem escola"} ·{" "}
-              {activity.cities?.name ?? "Sem cidade"} · Equipe {activity.teams?.name ?? "—"}
+              {activity.cities?.name ?? "Sem cidade"} · {team?.length ?? 0} na equipe
             </p>
           </div>
 
@@ -310,11 +311,65 @@ function ActivityDetailPage() {
       <Tabs defaultValue="checklist">
         <TabsList className="flex-wrap">
           <TabsTrigger value="checklist">Checklist ({doneCount}/{checklist?.length ?? 0})</TabsTrigger>
+          <TabsTrigger value="equipe">Equipe ({team?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="itens">Itens / OS</TabsTrigger>
           <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
           <TabsTrigger value="comentarios">Comentários</TabsTrigger>
           <TabsTrigger value="anexos">Anexos</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="equipe">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Equipe da atividade</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <Select value={memberId} onValueChange={setMemberId}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Selecione um funcionário" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(employees ?? [])
+                      .filter((e) => !(team ?? []).some((m) => m.employee_id === e.id))
+                      .map((e) => (
+                        <SelectItem key={e.id} value={e.id}>
+                          {e.name} · {e.job_role}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <Button className="h-11" onClick={addMember} disabled={!memberId}>
+                  <Plus className="mr-2 size-4" /> Adicionar
+                </Button>
+              </div>
+
+              {(team ?? []).length === 0 && (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  Nenhum funcionário alocado nesta atividade.
+                </p>
+              )}
+
+              <div className="space-y-2">
+                {(team ?? []).map((m) => (
+                  <div
+                    key={m.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{m.name ?? "Sem nome"}</p>
+                      <p className="text-xs text-muted-foreground">{m.job_role ?? "—"}</p>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => removeMember(m.id)}>
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
 
         <TabsContent value="checklist">
           <Card>
