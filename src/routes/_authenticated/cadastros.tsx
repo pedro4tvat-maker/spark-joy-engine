@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { JOB_ROLES } from "@/lib/psvne";
+import { LIST_GROUPS, useListOptions } from "@/hooks/use-list-options";
 
 export const Route = createFileRoute("/_authenticated/cadastros")({
   component: RegistriesPage,
@@ -69,6 +70,7 @@ function RegistriesPage() {
           <TabsTrigger value="partners">Parceiros</TabsTrigger>
           <TabsTrigger value="lens_types">Lentes</TabsTrigger>
           <TabsTrigger value="payment_methods">Pagamentos</TabsTrigger>
+          <TabsTrigger value="lists">Listas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="cities"><CitiesTab /></TabsContent>
@@ -80,6 +82,7 @@ function RegistriesPage() {
         <TabsContent value="partners"><SimpleTab table="partners" extra="phone" extraLabel="Telefone" /></TabsContent>
         <TabsContent value="lens_types"><SimpleTab table="lens_types" /></TabsContent>
         <TabsContent value="payment_methods"><SimpleTab table="payment_methods" /></TabsContent>
+        <TabsContent value="lists"><ListsTab /></TabsContent>
       </Tabs>
     </div>
   );
@@ -330,7 +333,9 @@ function SchoolsTab() {
 function EmployeesTab() {
   const { data } = useRows("employees");
   const { create, remove } = useRegistryActions("employees");
-  const [form, setForm] = useState({ name: "", job_role: JOB_ROLES[0], phone: "" });
+  const { options: jobRoles } = useListOptions("job_role", JOB_ROLES);
+  const [form, setForm] = useState({ name: "", job_role: "", phone: "" });
+  const jobRole = form.job_role || jobRoles[0] || "";
 
   return (
     <Card>
@@ -346,10 +351,10 @@ function EmployeesTab() {
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
-          <Select value={form.job_role} onValueChange={(v) => setForm({ ...form, job_role: v })}>
-            <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+          <Select value={jobRole} onValueChange={(v) => setForm({ ...form, job_role: v })}>
+            <SelectTrigger className="h-11"><SelectValue placeholder="Função" /></SelectTrigger>
             <SelectContent>
-              {JOB_ROLES.map((r) => (
+              {jobRoles.map((r) => (
                 <SelectItem key={r} value={r}>{r}</SelectItem>
               ))}
             </SelectContent>
@@ -366,10 +371,10 @@ function EmployeesTab() {
               if (!form.name.trim()) return;
               await create({
                 name: form.name,
-                job_role: form.job_role,
+                job_role: jobRole,
                 phone: form.phone || null,
               });
-              setForm({ name: "", job_role: JOB_ROLES[0], phone: "" });
+              setForm({ name: "", job_role: "", phone: "" });
             }}
           >
             <Plus className="mr-2 size-4" /> Adicionar
@@ -386,6 +391,109 @@ function EmployeesTab() {
             </>
           )}
         />
+      </CardContent>
+    </Card>
+  );
+}
+
+function ListsTab() {
+  const queryClient = useQueryClient();
+  const [group, setGroup] = useState(LIST_GROUPS[0].key);
+  const [name, setName] = useState("");
+
+  const { data } = useQuery({
+    queryKey: ["list-options-admin", group],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("list_options")
+        .select("*")
+        .eq("group_key", group)
+        .order("position")
+        .order("name");
+      return data ?? [];
+    },
+  });
+
+  function refresh() {
+    queryClient.invalidateQueries({ queryKey: ["list-options-admin", group] });
+    queryClient.invalidateQueries({ queryKey: ["list-options", group] });
+  }
+
+  async function add() {
+    if (!name.trim()) return;
+    const { error } = await supabase.from("list_options").insert({
+      group_key: group,
+      name: name.trim(),
+      position: data?.length ?? 0,
+    });
+    if (error) return toast.error("Erro ao adicionar", { description: error.message });
+    setName("");
+    toast.success("Opção adicionada");
+    refresh();
+  }
+
+  async function toggle(id: string, active: boolean) {
+    const { error } = await supabase.from("list_options").update({ active }).eq("id", id);
+    if (error) return toast.error("Erro ao atualizar", { description: error.message });
+    refresh();
+  }
+
+  async function rename(id: string, current: string) {
+    const value = window.prompt("Novo nome da opção", current);
+    if (!value || value.trim() === current) return;
+    const { error } = await supabase.from("list_options").update({ name: value.trim() }).eq("id", id);
+    if (error) return toast.error("Erro ao renomear", { description: error.message });
+    refresh();
+  }
+
+  const current = LIST_GROUPS.find((g) => g.key === group);
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-4">
+        <p className="text-xs text-muted-foreground">
+          Personalize as opções que aparecem nas listas suspensas do sistema.
+        </p>
+        <Select value={group} onValueChange={(v) => setGroup(v)}>
+          <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {LIST_GROUPS.map((g) => (
+              <SelectItem key={g.key} value={g.key}>{g.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">{current?.description}</p>
+
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <Input
+            className="h-11"
+            placeholder="Nova opção"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && add()}
+          />
+          <Button className="h-11" onClick={add}>
+            <Plus className="mr-2 size-4" /> Adicionar
+          </Button>
+        </div>
+
+        <div className="divide-y rounded-lg border">
+          {(data ?? []).length === 0 && (
+            <p className="py-10 text-center text-sm text-muted-foreground">Nenhuma opção.</p>
+          )}
+          {(data ?? []).map((o) => (
+            <div key={o.id} className="flex items-center gap-3 px-3 py-3">
+              <p className="min-w-0 flex-1 truncate text-sm font-medium">{o.name}</p>
+              {!o.active && <Badge variant="secondary">inativo</Badge>}
+              <Button variant="ghost" size="sm" onClick={() => rename(o.id, o.name)}>
+                Renomear
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => toggle(o.id, !o.active)}>
+                {o.active ? "Inativar" : "Ativar"}
+              </Button>
+            </div>
+          ))}
+        </div>
       </CardContent>
     </Card>
   );
