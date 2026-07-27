@@ -90,7 +90,7 @@ function ActivityDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("activity_comments")
-        .select("*, profiles(full_name)")
+        .select("*")
         .eq("activity_id", activityId)
         .order("created_at");
       return data ?? [];
@@ -121,6 +121,14 @@ function ActivityDetailPage() {
     },
   });
 
+  const { data: authors } = useQuery({
+    queryKey: ["comment-authors", activityId],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("id, full_name");
+      return Object.fromEntries((data ?? []).map((p) => [p.id, p.full_name])) as Record<string, string>;
+    },
+  });
+
   const [comment, setComment] = useState("");
   const [newItem, setNewItem] = useState({ os_number: "", student_name: "", amount_sold: "", amount_received: "" });
   const [uploadCategory, setUploadCategory] = useState(DOCUMENT_CATEGORIES[0]);
@@ -138,21 +146,14 @@ function ActivityDetailPage() {
     );
 
   const tone = toneClasses(eventTone(activity.type, activity.status, activity.priority));
-  const doneCount = (checklist ?? []).filter((c) => c.checked).length;
+  const doneCount = (checklist ?? []).filter((c) => c.done).length;
 
   async function refresh() {
     await queryClient.invalidateQueries();
   }
 
-  async function toggleCheck(id: string, checked: boolean) {
-    await supabase
-      .from("activity_checklists")
-      .update({
-        checked,
-        checked_at: checked ? new Date().toISOString() : null,
-        checked_by: checked ? profile?.userId ?? null : null,
-      })
-      .eq("id", id);
+  async function toggleCheck(id: string, done: boolean) {
+    await supabase.from("activity_checklists").update({ done }).eq("id", id);
     refresh();
   }
 
@@ -167,7 +168,7 @@ function ActivityDetailPage() {
     if (!comment.trim() || !profile) return;
     const { error } = await supabase
       .from("activity_comments")
-      .insert({ activity_id: activityId, author_id: profile.userId, body: comment.trim() });
+      .insert({ activity_id: activityId, user_id: profile.userId, body: comment.trim() });
     if (error) return toast.error("Erro ao comentar", { description: error.message });
     setComment("");
     refresh();
@@ -208,10 +209,10 @@ function ActivityDetailPage() {
     }
     const { error } = await supabase.from("activity_documents").insert({
       activity_id: activityId,
-      uploaded_by: profile.userId,
-      file_name: file.name,
-      file_path: path,
-      file_size: file.size,
+      user_id: profile.userId,
+      name: file.name,
+      storage_path: path,
+      size_bytes: file.size,
       mime_type: file.type,
       category: uploadCategory,
     });
@@ -305,10 +306,10 @@ function ActivityDetailPage() {
                   className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-muted/60"
                 >
                   <Checkbox
-                    checked={c.checked}
+                    checked={c.done}
                     onCheckedChange={(v) => toggleCheck(c.id, Boolean(v))}
                   />
-                  <span className={c.checked ? "text-sm text-muted-foreground line-through" : "text-sm"}>
+                  <span className={c.done ? "text-sm text-muted-foreground line-through" : "text-sm"}>
                     {c.label}
                   </span>
                 </label>
@@ -408,7 +409,7 @@ function ActivityDetailPage() {
                 {(comments ?? []).map((c) => (
                   <div key={c.id} className="rounded-lg border bg-card p-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium">{c.profiles?.full_name ?? "Usuário"}</p>
+                      <p className="text-sm font-medium">{authors?.[c.user_id ?? ""] ?? "Usuário"}</p>
                       <span className="text-xs text-muted-foreground">
                         {new Date(c.created_at).toLocaleString("pt-BR")}
                       </span>
@@ -467,11 +468,11 @@ function ActivityDetailPage() {
                 {(documents ?? []).map((d) => (
                   <button
                     key={d.id}
-                    onClick={() => openDocument(d.file_path)}
+                    onClick={() => openDocument(d.storage_path)}
                     className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-muted/60"
                   >
                     <Paperclip className="size-4 text-muted-foreground" />
-                    <span className="min-w-0 flex-1 truncate text-sm">{d.file_name}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm">{d.name}</span>
                     <Badge variant="secondary">{d.category ?? "Outros"}</Badge>
                   </button>
                 ))}

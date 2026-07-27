@@ -14,6 +14,8 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCalendarioRouteImport } from './routes/_authenticated/calendario'
+import { Route as AuthenticatedAtividadesIndexRouteImport } from './routes/_authenticated/atividades/index'
+import { Route as AuthenticatedAtividadesActivityIdRouteImport } from './routes/_authenticated/atividades/$activityId'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -39,18 +41,34 @@ const AuthenticatedCalendarioRoute = AuthenticatedCalendarioRouteImport.update({
   path: '/calendario',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAtividadesIndexRoute =
+  AuthenticatedAtividadesIndexRouteImport.update({
+    id: '/atividades/',
+    path: '/atividades/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAtividadesActivityIdRoute =
+  AuthenticatedAtividadesActivityIdRouteImport.update({
+    id: '/atividades/$activityId',
+    path: '/atividades/$activityId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/atividades/$activityId': typeof AuthenticatedAtividadesActivityIdRoute
+  '/atividades/': typeof AuthenticatedAtividadesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/calendario': typeof AuthenticatedCalendarioRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/atividades/$activityId': typeof AuthenticatedAtividadesActivityIdRoute
+  '/atividades': typeof AuthenticatedAtividadesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -59,12 +77,26 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/calendario': typeof AuthenticatedCalendarioRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/atividades/$activityId': typeof AuthenticatedAtividadesActivityIdRoute
+  '/_authenticated/atividades/': typeof AuthenticatedAtividadesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/calendario' | '/dashboard'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/calendario'
+    | '/dashboard'
+    | '/atividades/$activityId'
+    | '/atividades/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/calendario' | '/dashboard'
+  to:
+    | '/'
+    | '/auth'
+    | '/calendario'
+    | '/dashboard'
+    | '/atividades/$activityId'
+    | '/atividades'
   id:
     | '__root__'
     | '/'
@@ -72,6 +104,8 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/calendario'
     | '/_authenticated/dashboard'
+    | '/_authenticated/atividades/$activityId'
+    | '/_authenticated/atividades/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -117,17 +151,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCalendarioRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/atividades/': {
+      id: '/_authenticated/atividades/'
+      path: '/atividades'
+      fullPath: '/atividades/'
+      preLoaderRoute: typeof AuthenticatedAtividadesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/atividades/$activityId': {
+      id: '/_authenticated/atividades/$activityId'
+      path: '/atividades/$activityId'
+      fullPath: '/atividades/$activityId'
+      preLoaderRoute: typeof AuthenticatedAtividadesActivityIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedCalendarioRoute: typeof AuthenticatedCalendarioRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedAtividadesActivityIdRoute: typeof AuthenticatedAtividadesActivityIdRoute
+  AuthenticatedAtividadesIndexRoute: typeof AuthenticatedAtividadesIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCalendarioRoute: AuthenticatedCalendarioRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedAtividadesActivityIdRoute:
+    AuthenticatedAtividadesActivityIdRoute,
+  AuthenticatedAtividadesIndexRoute: AuthenticatedAtividadesIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
