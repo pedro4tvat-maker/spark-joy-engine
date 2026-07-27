@@ -251,8 +251,14 @@ function SimpleTab({
 
 function CitiesTab() {
   const { data } = useRows("cities");
-  const { create, remove } = useRegistryActions("cities");
+  const { create, update, remove, restore } = useRegistryActions("cities");
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", state: "" });
+
+  function reset() {
+    setEditingId(null);
+    setForm({ name: "", state: "" });
+  }
 
   return (
     <Card>
@@ -277,22 +283,32 @@ function CitiesTab() {
               if (!form.name.trim() || form.state.length !== 2) {
                 return toast.error("Informe cidade e UF");
               }
-              await create(form);
-              setForm({ name: "", state: "" });
+              if (editingId) await update(editingId, form);
+              else await create(form);
+              reset();
             }}
           >
-            <Plus className="mr-2 size-4" /> Adicionar
+            {editingId ? "Salvar" : (<><Plus className="mr-2 size-4" /> Adicionar</>)}
           </Button>
+          {editingId && (
+            <Button className="h-11" variant="ghost" onClick={reset}>Cancelar</Button>
+          )}
         </div>
         <RowList
           rows={data ?? []}
           onRemove={remove}
+          onRestore={restore}
+          onEdit={(r) => {
+            setEditingId(r.id);
+            setForm({ name: r.name ?? "", state: r.state ?? "" });
+          }}
           render={(r) => (
             <p className="text-sm font-medium">
               {r.name} <span className="text-muted-foreground">/ {r.state}</span>
             </p>
           )}
         />
+
       </CardContent>
     </Card>
   );
