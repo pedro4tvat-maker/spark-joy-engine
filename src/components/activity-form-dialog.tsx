@@ -54,7 +54,6 @@ export function ActivityFormDialog({ trigger, defaultDate, activityId }: Props) 
     end_time: "12:00",
     city_id: "",
     school_id: "",
-    team_id: "",
     owner_id: "",
     address: "",
     description: "",
@@ -64,16 +63,14 @@ export function ActivityFormDialog({ trigger, defaultDate, activityId }: Props) 
     queryKey: ["activity-form-master"],
     enabled: open,
     queryFn: async () => {
-      const [cities, schools, teams, profiles] = await Promise.all([
+      const [cities, schools, profiles] = await Promise.all([
         supabase.from("cities").select("id, name").eq("active", true).order("name"),
         supabase.from("schools").select("id, name, city_id, address").eq("active", true).order("name"),
-        supabase.from("teams").select("id, name").eq("active", true).order("name"),
         supabase.from("profiles").select("id, full_name").order("full_name"),
       ]);
       return {
         cities: cities.data ?? [],
         schools: schools.data ?? [],
-        teams: teams.data ?? [],
         profiles: profiles.data ?? [],
       };
     },
@@ -95,7 +92,6 @@ export function ActivityFormDialog({ trigger, defaultDate, activityId }: Props) 
           end_time: data.end_time?.slice(0, 5) ?? "",
           city_id: data.city_id ?? "",
           school_id: data.school_id ?? "",
-          team_id: data.team_id ?? "",
           owner_id: data.owner_id ?? "",
           address: data.address ?? "",
           description: data.description ?? "",
@@ -133,7 +129,6 @@ export function ActivityFormDialog({ trigger, defaultDate, activityId }: Props) 
       end_time: form.end_time || null,
       city_id: form.city_id || null,
       school_id: form.school_id || null,
-      team_id: form.team_id || null,
       owner_id: form.owner_id || uid,
       address: form.address || null,
       description: form.description || null,
@@ -240,16 +235,6 @@ export function ActivityFormDialog({ trigger, defaultDate, activityId }: Props) 
             </Select>
           </Field>
 
-          <Field label="Equipe">
-            <Select value={form.team_id} onValueChange={(v) => set("team_id", v)}>
-              <SelectTrigger className="h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>
-                {(master?.teams ?? []).map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
 
           <Field label="Responsável">
             <Select value={form.owner_id} onValueChange={(v) => set("owner_id", v)}>

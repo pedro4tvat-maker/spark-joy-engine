@@ -43,7 +43,6 @@ export const Route = createFileRoute("/_authenticated/cadastros")({
 type TableName =
   | "cities"
   | "schools"
-  | "teams"
   | "employees"
   | "vehicles"
   | "labs"
@@ -63,7 +62,7 @@ function RegistriesPage() {
         <TabsList className="flex-wrap">
           <TabsTrigger value="cities">Cidades</TabsTrigger>
           <TabsTrigger value="schools">Escolas</TabsTrigger>
-          <TabsTrigger value="teams">Equipes</TabsTrigger>
+          
           <TabsTrigger value="employees">Funcionários</TabsTrigger>
           <TabsTrigger value="vehicles">Veículos</TabsTrigger>
           <TabsTrigger value="labs">Laboratórios</TabsTrigger>
@@ -74,7 +73,7 @@ function RegistriesPage() {
 
         <TabsContent value="cities"><CitiesTab /></TabsContent>
         <TabsContent value="schools"><SchoolsTab /></TabsContent>
-        <TabsContent value="teams"><SimpleTab table="teams" extra="description" extraLabel="Descrição" /></TabsContent>
+        
         <TabsContent value="employees"><EmployeesTab /></TabsContent>
         <TabsContent value="vehicles"><SimpleTab table="vehicles" extra="plate" extraLabel="Placa" /></TabsContent>
         <TabsContent value="labs"><SimpleTab table="labs" extra="phone" extraLabel="Telefone" /></TabsContent>
@@ -330,13 +329,16 @@ function SchoolsTab() {
 
 function EmployeesTab() {
   const { data } = useRows("employees");
-  const { data: teams } = useRows("teams");
   const { create, remove } = useRegistryActions("employees");
-  const [form, setForm] = useState({ name: "", job_role: JOB_ROLES[0], team_id: "", phone: "" });
+  const [form, setForm] = useState({ name: "", job_role: JOB_ROLES[0], phone: "" });
 
   return (
     <Card>
       <CardContent className="space-y-3 p-4">
+        <p className="text-xs text-muted-foreground">
+          Cadastre os funcionários aqui e monte a equipe de cada atividade individualmente na aba
+          Equipe da atividade.
+        </p>
         <div className="grid gap-2 sm:grid-cols-2">
           <Input
             className="h-11"
@@ -349,14 +351,6 @@ function EmployeesTab() {
             <SelectContent>
               {JOB_ROLES.map((r) => (
                 <SelectItem key={r} value={r}>{r}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={form.team_id} onValueChange={(v) => setForm({ ...form, team_id: v })}>
-            <SelectTrigger className="h-11"><SelectValue placeholder="Equipe" /></SelectTrigger>
-            <SelectContent>
-              {(teams ?? []).map((t) => (
-                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -373,15 +367,15 @@ function EmployeesTab() {
               await create({
                 name: form.name,
                 job_role: form.job_role,
-                team_id: form.team_id || null,
                 phone: form.phone || null,
               });
-              setForm({ name: "", job_role: JOB_ROLES[0], team_id: "", phone: "" });
+              setForm({ name: "", job_role: JOB_ROLES[0], phone: "" });
             }}
           >
             <Plus className="mr-2 size-4" /> Adicionar
           </Button>
         </div>
+
         <RowList
           rows={data ?? []}
           onRemove={remove}

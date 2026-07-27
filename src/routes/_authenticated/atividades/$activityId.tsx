@@ -66,7 +66,7 @@ function ActivityDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("activities")
-        .select("*, cities(name, state), schools(name, address), teams(name)")
+        .select("*, cities(name, state), schools(name, address)")
         .eq("id", activityId)
         .maybeSingle();
       return data;
@@ -121,6 +121,30 @@ function ActivityDetailPage() {
     },
   });
 
+  const { data: team } = useQuery({
+    queryKey: ["activity-team", activityId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("activity_team")
+        .select("*")
+        .eq("activity_id", activityId)
+        .order("created_at");
+      return data ?? [];
+    },
+  });
+
+  const { data: employees } = useQuery({
+    queryKey: ["employees-active"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("employees")
+        .select("id, name, job_role, user_id")
+        .eq("active", true)
+        .order("name");
+      return data ?? [];
+    },
+  });
+
   const { data: authors } = useQuery({
     queryKey: ["comment-authors", activityId],
     queryFn: async () => {
@@ -133,6 +157,7 @@ function ActivityDetailPage() {
   const [newItem, setNewItem] = useState({ os_number: "", student_name: "", amount_sold: "", amount_received: "" });
   const [uploadCategory, setUploadCategory] = useState(DOCUMENT_CATEGORIES[0]);
   const [uploading, setUploading] = useState(false);
+  const [memberId, setMemberId] = useState("");
 
   if (isLoading) return <p className="p-6 text-sm text-muted-foreground">Carregando…</p>;
   if (!activity)
@@ -151,6 +176,29 @@ function ActivityDetailPage() {
   async function refresh() {
     await queryClient.invalidateQueries();
   }
+
+  async function addMember() {
+    const emp = (employees ?? []).find((e) => e.id === memberId);
+    if (!emp) return;
+    const { error } = await supabase.from("activity_team").insert({
+      activity_id: activityId,
+      employee_id: emp.id,
+      user_id: emp.user_id ?? null,
+      name: emp.name,
+      job_role: emp.job_role,
+    });
+    if (error) return toast.error("Erro ao adicionar", { description: error.message });
+    setMemberId("");
+    toast.success("Funcionário adicionado à equipe");
+    refresh();
+  }
+
+  async function removeMember(id: string) {
+    await supabase.from("activity_team").delete().eq("id", id);
+    refresh();
+  }
+
+
 
   async function toggleCheck(id: string, done: boolean) {
     await supabase.from("activity_checklists").update({ done }).eq("id", id);
@@ -258,7 +306,7 @@ function ActivityDetailPage() {
             </p>
             <p className="text-sm text-muted-foreground">
               {activity.schools?.name ?? "Sem escola"} ·{" "}
-              {activity.cities?.name ?? "Sem cidade"} · Equipe {activity.teams?.name ?? "—"}
+              {activity.cities?.name ?? "Sem cidade"} · {team?.length ?? 0} na equipe
             </p>
           </div>
 
@@ -286,11 +334,65 @@ function ActivityDetailPage() {
       <Tabs defaultValue="checklist">
         <TabsList className="flex-wrap">
           <TabsTrigger value="checklist">Checklist ({doneCount}/{checklist?.length ?? 0})</TabsTrigger>
+          <TabsTrigger value="equipe">Equipe ({team?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="itens">Itens / OS</TabsTrigger>
           <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
           <TabsTrigger value="comentarios">Comentários</TabsTrigger>
           <TabsTrigger value="anexos">Anexos</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="equipe">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Equipe da atividade</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <Select value={memberId} onValueChange={setMemberId}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Selecione um funcionário" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(employees ?? [])
+                      .filter((e) => !(team ?? []).some((m) => m.employee_id === e.id))
+                      .map((e) => (
+                        <SelectItem key={e.id} value={e.id}>
+                          {e.name} · {e.job_role}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <Button className="h-11" onClick={addMember} disabled={!memberId}>
+                  <Plus className="mr-2 size-4" /> Adicionar
+                </Button>
+              </div>
+
+              {(team ?? []).length === 0 && (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  Nenhum funcionário alocado nesta atividade.
+                </p>
+              )}
+
+              <div className="space-y-2">
+                {(team ?? []).map((m) => (
+                  <div
+                    key={m.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{m.name ?? "Sem nome"}</p>
+                      <p className="text-xs text-muted-foreground">{m.job_role ?? "—"}</p>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => removeMember(m.id)}>
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
 
         <TabsContent value="checklist">
           <Card>
