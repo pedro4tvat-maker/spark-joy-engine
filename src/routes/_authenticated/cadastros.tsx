@@ -419,10 +419,16 @@ function SchoolsTab() {
 
 function EmployeesTab() {
   const { data } = useRows("employees");
-  const { create, remove } = useRegistryActions("employees");
+  const { create, update, remove, restore } = useRegistryActions("employees");
   const { options: jobRoles } = useListOptions("job_role", JOB_ROLES);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", job_role: "", phone: "" });
   const jobRole = form.job_role || jobRoles[0] || "";
+
+  function reset() {
+    setEditingId(null);
+    setForm({ name: "", job_role: "", phone: "" });
+  }
 
   return (
     <Card>
@@ -452,25 +458,37 @@ function EmployeesTab() {
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
-          <Button
-            className="h-11"
-            onClick={async () => {
-              if (!form.name.trim()) return;
-              await create({
-                name: form.name,
-                job_role: jobRole,
-                phone: form.phone || null,
-              });
-              setForm({ name: "", job_role: "", phone: "" });
-            }}
-          >
-            <Plus className="mr-2 size-4" /> Adicionar
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              className="h-11 flex-1"
+              onClick={async () => {
+                if (!form.name.trim()) return;
+                const payload = {
+                  name: form.name,
+                  job_role: jobRole,
+                  phone: form.phone || null,
+                };
+                if (editingId) await update(editingId, payload);
+                else await create(payload);
+                reset();
+              }}
+            >
+              {editingId ? "Salvar" : (<><Plus className="mr-2 size-4" /> Adicionar</>)}
+            </Button>
+            {editingId && (
+              <Button className="h-11" variant="ghost" onClick={reset}>Cancelar</Button>
+            )}
+          </div>
         </div>
 
         <RowList
           rows={data ?? []}
           onRemove={remove}
+          onRestore={restore}
+          onEdit={(r) => {
+            setEditingId(r.id);
+            setForm({ name: r.name ?? "", job_role: r.job_role ?? "", phone: r.phone ?? "" });
+          }}
           render={(r) => (
             <>
               <p className="text-sm font-medium">{r.name}</p>
@@ -478,6 +496,7 @@ function EmployeesTab() {
             </>
           )}
         />
+
       </CardContent>
     </Card>
   );
