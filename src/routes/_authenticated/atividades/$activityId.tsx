@@ -264,7 +264,7 @@ function ActivityDetailPage() {
       storage_path: path,
       size_bytes: file.size,
       mime_type: file.type,
-      category: uploadCategory,
+      category: uploadCategory || docCategories[0],
     });
     setUploading(false);
     if (error) return toast.error("Erro ao registrar anexo", { description: error.message });
