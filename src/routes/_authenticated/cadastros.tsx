@@ -1,0 +1,398 @@
+import { useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Plus, Trash2 } from "lucide-react";
+
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { JOB_ROLES } from "@/lib/psvne";
+
+export const Route = createFileRoute("/_authenticated/cadastros")({
+  component: RegistriesPage,
+  head: () => ({
+    meta: [
+      { title: "Cadastros | PSVNE Operações" },
+      {
+        name: "description",
+        content:
+          "Cadastros mestres do PSVNE: cidades, escolas, equipes, funcionários, veículos, laboratórios, parceiros e formas de pagamento.",
+      },
+      { property: "og:title", content: "Cadastros | PSVNE Operações" },
+      {
+        property: "og:description",
+        content: "Gerencie as bases de cidades, escolas, equipes e fornecedores do PSVNE.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+});
+
+type TableName =
+  | "cities"
+  | "schools"
+  | "teams"
+  | "employees"
+  | "vehicles"
+  | "labs"
+  | "partners"
+  | "lens_types"
+  | "payment_methods";
+
+function RegistriesPage() {
+  return (
+    <div className="mx-auto max-w-5xl space-y-5">
+      <div>
+        <h1 className="font-display text-2xl font-semibold tracking-tight">Cadastros</h1>
+        <p className="text-sm text-muted-foreground">Bases mestras utilizadas nas atividades</p>
+      </div>
+
+      <Tabs defaultValue="cities">
+        <TabsList className="flex-wrap">
+          <TabsTrigger value="cities">Cidades</TabsTrigger>
+          <TabsTrigger value="schools">Escolas</TabsTrigger>
+          <TabsTrigger value="teams">Equipes</TabsTrigger>
+          <TabsTrigger value="employees">Funcionários</TabsTrigger>
+          <TabsTrigger value="vehicles">Veículos</TabsTrigger>
+          <TabsTrigger value="labs">Laboratórios</TabsTrigger>
+          <TabsTrigger value="partners">Parceiros</TabsTrigger>
+          <TabsTrigger value="lens_types">Lentes</TabsTrigger>
+          <TabsTrigger value="payment_methods">Pagamentos</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="cities"><CitiesTab /></TabsContent>
+        <TabsContent value="schools"><SchoolsTab /></TabsContent>
+        <TabsContent value="teams"><SimpleTab table="teams" extra="description" extraLabel="Descrição" /></TabsContent>
+        <TabsContent value="employees"><EmployeesTab /></TabsContent>
+        <TabsContent value="vehicles"><SimpleTab table="vehicles" extra="plate" extraLabel="Placa" /></TabsContent>
+        <TabsContent value="labs"><SimpleTab table="labs" extra="phone" extraLabel="Telefone" /></TabsContent>
+        <TabsContent value="partners"><SimpleTab table="partners" extra="phone" extraLabel="Telefone" /></TabsContent>
+        <TabsContent value="lens_types"><SimpleTab table="lens_types" /></TabsContent>
+        <TabsContent value="payment_methods"><SimpleTab table="payment_methods" /></TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function useRows(table: TableName) {
+  return useQuery({
+    queryKey: ["registry", table],
+    queryFn: async () => {
+      const { data } = await supabase.from(table).select("*").order("name");
+      return (data ?? []) as Record<string, any>[];
+    },
+  });
+}
+
+function useRegistryActions(table: TableName) {
+  const queryClient = useQueryClient();
+  return {
+    async create(payload: Record<string, any>) {
+      const { error } = await supabase.from(table).insert(payload as never);
+      if (error) return toast.error("Erro ao salvar", { description: error.message });
+      toast.success("Cadastro criado");
+      queryClient.invalidateQueries({ queryKey: ["registry", table] });
+    },
+    async remove(id: string) {
+      const { error } = await supabase.from(table).update({ active: false } as never).eq("id", id);
+      if (error) return toast.error("Erro ao remover", { description: error.message });
+      queryClient.invalidateQueries({ queryKey: ["registry", table] });
+    },
+  };
+}
+
+function RowList({
+  rows,
+  onRemove,
+  render,
+}: {
+  rows: Record<string, any>[];
+  onRemove: (id: string) => void;
+  render: (row: Record<string, any>) => React.ReactNode;
+}) {
+  return (
+    <div className="divide-y rounded-lg border">
+      {rows.length === 0 && (
+        <p className="py-10 text-center text-sm text-muted-foreground">Nenhum registro.</p>
+      )}
+      {rows.map((r) => (
+        <div key={r.id} className="flex items-center gap-3 px-3 py-3">
+          <div className="min-w-0 flex-1">{render(r)}</div>
+          {!r.active && <Badge variant="secondary">inativo</Badge>}
+          <Button variant="ghost" size="icon" onClick={() => onRemove(r.id)} aria-label="Inativar">
+            <Trash2 className="size-4 text-destructive" />
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SimpleTab({
+  table,
+  extra,
+  extraLabel,
+}: {
+  table: TableName;
+  extra?: string;
+  extraLabel?: string;
+}) {
+  const { data } = useRows(table);
+  const { create, remove } = useRegistryActions(table);
+  const [name, setName] = useState("");
+  const [extraValue, setExtraValue] = useState("");
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-4">
+        <div className="flex flex-wrap gap-2">
+          <Input
+            className="h-11 flex-1"
+            placeholder="Nome"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          {extra && (
+            <Input
+              className="h-11 flex-1"
+              placeholder={extraLabel}
+              value={extraValue}
+              onChange={(e) => setExtraValue(e.target.value)}
+            />
+          )}
+          <Button
+            className="h-11"
+            onClick={async () => {
+              if (!name.trim()) return;
+              await create(extra ? { name, [extra]: extraValue || null } : { name });
+              setName("");
+              setExtraValue("");
+            }}
+          >
+            <Plus className="mr-2 size-4" /> Adicionar
+          </Button>
+        </div>
+        <RowList
+          rows={data ?? []}
+          onRemove={remove}
+          render={(r) => (
+            <>
+              <p className="text-sm font-medium">{r.name}</p>
+              {extra && r[extra] && (
+                <p className="text-xs text-muted-foreground">{r[extra]}</p>
+              )}
+            </>
+          )}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function CitiesTab() {
+  const { data } = useRows("cities");
+  const { create, remove } = useRegistryActions("cities");
+  const [form, setForm] = useState({ name: "", state: "" });
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-4">
+        <div className="flex flex-wrap gap-2">
+          <Input
+            className="h-11 flex-1"
+            placeholder="Cidade"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+          <Input
+            className="h-11 w-24"
+            maxLength={2}
+            placeholder="UF"
+            value={form.state}
+            onChange={(e) => setForm({ ...form, state: e.target.value.toUpperCase() })}
+          />
+          <Button
+            className="h-11"
+            onClick={async () => {
+              if (!form.name.trim() || form.state.length !== 2) {
+                return toast.error("Informe cidade e UF");
+              }
+              await create(form);
+              setForm({ name: "", state: "" });
+            }}
+          >
+            <Plus className="mr-2 size-4" /> Adicionar
+          </Button>
+        </div>
+        <RowList
+          rows={data ?? []}
+          onRemove={remove}
+          render={(r) => (
+            <p className="text-sm font-medium">
+              {r.name} <span className="text-muted-foreground">/ {r.state}</span>
+            </p>
+          )}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function SchoolsTab() {
+  const { data } = useRows("schools");
+  const { data: cities } = useRows("cities");
+  const { create, remove } = useRegistryActions("schools");
+  const [form, setForm] = useState({ name: "", city_id: "", address: "", principal: "", phone: "" });
+
+  const cityName = (id: string | null) => (cities ?? []).find((c) => c.id === id)?.name ?? "—";
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-4">
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Input
+            className="h-11"
+            placeholder="Nome da escola"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+          <Select value={form.city_id} onValueChange={(v) => setForm({ ...form, city_id: v })}>
+            <SelectTrigger className="h-11"><SelectValue placeholder="Cidade" /></SelectTrigger>
+            <SelectContent>
+              {(cities ?? []).map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            className="h-11"
+            placeholder="Endereço"
+            value={form.address}
+            onChange={(e) => setForm({ ...form, address: e.target.value })}
+          />
+          <Input
+            className="h-11"
+            placeholder="Diretor(a)"
+            value={form.principal}
+            onChange={(e) => setForm({ ...form, principal: e.target.value })}
+          />
+          <Input
+            className="h-11"
+            placeholder="Telefone"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          />
+          <Button
+            className="h-11"
+            onClick={async () => {
+              if (!form.name.trim()) return;
+              await create({
+                name: form.name,
+                city_id: form.city_id || null,
+                address: form.address || null,
+                principal: form.principal || null,
+                phone: form.phone || null,
+              });
+              setForm({ name: "", city_id: "", address: "", principal: "", phone: "" });
+            }}
+          >
+            <Plus className="mr-2 size-4" /> Adicionar
+          </Button>
+        </div>
+        <RowList
+          rows={data ?? []}
+          onRemove={remove}
+          render={(r) => (
+            <>
+              <p className="text-sm font-medium">{r.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {cityName(r.city_id)} · {r.address ?? "sem endereço"}
+              </p>
+            </>
+          )}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function EmployeesTab() {
+  const { data } = useRows("employees");
+  const { data: teams } = useRows("teams");
+  const { create, remove } = useRegistryActions("employees");
+  const [form, setForm] = useState({ name: "", job_role: JOB_ROLES[0], team_id: "", phone: "" });
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-4">
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Input
+            className="h-11"
+            placeholder="Nome"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+          <Select value={form.job_role} onValueChange={(v) => setForm({ ...form, job_role: v })}>
+            <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {JOB_ROLES.map((r) => (
+                <SelectItem key={r} value={r}>{r}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={form.team_id} onValueChange={(v) => setForm({ ...form, team_id: v })}>
+            <SelectTrigger className="h-11"><SelectValue placeholder="Equipe" /></SelectTrigger>
+            <SelectContent>
+              {(teams ?? []).map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            className="h-11"
+            placeholder="Telefone"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          />
+          <Button
+            className="h-11"
+            onClick={async () => {
+              if (!form.name.trim()) return;
+              await create({
+                name: form.name,
+                job_role: form.job_role,
+                team_id: form.team_id || null,
+                phone: form.phone || null,
+              });
+              setForm({ name: "", job_role: JOB_ROLES[0], team_id: "", phone: "" });
+            }}
+          >
+            <Plus className="mr-2 size-4" /> Adicionar
+          </Button>
+        </div>
+        <RowList
+          rows={data ?? []}
+          onRemove={remove}
+          render={(r) => (
+            <>
+              <p className="text-sm font-medium">{r.name}</p>
+              <p className="text-xs text-muted-foreground">{r.job_role}</p>
+            </>
+          )}
+        />
+      </CardContent>
+    </Card>
+  );
+}
