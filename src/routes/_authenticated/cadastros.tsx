@@ -100,17 +100,29 @@ function useRows(table: TableName) {
 
 function useRegistryActions(table: TableName) {
   const queryClient = useQueryClient();
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["registry", table] });
   return {
     async create(payload: Record<string, any>) {
       const { error } = await supabase.from(table).insert(payload as never);
       if (error) return toast.error("Erro ao salvar", { description: error.message });
       toast.success("Cadastro criado");
-      queryClient.invalidateQueries({ queryKey: ["registry", table] });
+      invalidate();
+    },
+    async update(id: string, payload: Record<string, any>) {
+      const { error } = await supabase.from(table).update(payload as never).eq("id", id);
+      if (error) return toast.error("Erro ao atualizar", { description: error.message });
+      toast.success("Cadastro atualizado");
+      invalidate();
     },
     async remove(id: string) {
       const { error } = await supabase.from(table).update({ active: false } as never).eq("id", id);
       if (error) return toast.error("Erro ao remover", { description: error.message });
-      queryClient.invalidateQueries({ queryKey: ["registry", table] });
+      invalidate();
+    },
+    async restore(id: string) {
+      const { error } = await supabase.from(table).update({ active: true } as never).eq("id", id);
+      if (error) return toast.error("Erro ao reativar", { description: error.message });
+      invalidate();
     },
   };
 }
@@ -118,10 +130,14 @@ function useRegistryActions(table: TableName) {
 function RowList({
   rows,
   onRemove,
+  onRestore,
+  onEdit,
   render,
 }: {
   rows: Record<string, any>[];
   onRemove: (id: string) => void;
+  onRestore?: (id: string) => void;
+  onEdit?: (row: Record<string, any>) => void;
   render: (row: Record<string, any>) => React.ReactNode;
 }) {
   return (
@@ -130,17 +146,29 @@ function RowList({
         <p className="py-10 text-center text-sm text-muted-foreground">Nenhum registro.</p>
       )}
       {rows.map((r) => (
-        <div key={r.id} className="flex items-center gap-3 px-3 py-3">
+        <div key={r.id} className="flex items-center gap-2 px-3 py-3">
           <div className="min-w-0 flex-1">{render(r)}</div>
           {!r.active && <Badge variant="secondary">inativo</Badge>}
-          <Button variant="ghost" size="icon" onClick={() => onRemove(r.id)} aria-label="Inativar">
-            <Trash2 className="size-4 text-destructive" />
-          </Button>
+          {onEdit && (
+            <Button variant="ghost" size="icon" onClick={() => onEdit(r)} aria-label="Editar">
+              <Pencil className="size-4" />
+            </Button>
+          )}
+          {r.active === false && onRestore ? (
+            <Button variant="ghost" size="sm" onClick={() => onRestore(r.id)}>
+              Reativar
+            </Button>
+          ) : (
+            <Button variant="ghost" size="icon" onClick={() => onRemove(r.id)} aria-label="Inativar">
+              <Trash2 className="size-4 text-destructive" />
+            </Button>
+          )}
         </div>
       ))}
     </div>
   );
 }
+
 
 function SimpleTab({
   table,
