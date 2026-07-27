@@ -317,10 +317,16 @@ function CitiesTab() {
 function SchoolsTab() {
   const { data } = useRows("schools");
   const { data: cities } = useRows("cities");
-  const { create, remove } = useRegistryActions("schools");
+  const { create, update, remove, restore } = useRegistryActions("schools");
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", city_id: "", address: "", principal: "", phone: "" });
 
   const cityName = (id: string | null) => (cities ?? []).find((c) => c.id === id)?.name ?? "—";
+
+  function reset() {
+    setEditingId(null);
+    setForm({ name: "", city_id: "", address: "", principal: "", phone: "" });
+  }
 
   return (
     <Card>
@@ -358,26 +364,44 @@ function SchoolsTab() {
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
-          <Button
-            className="h-11"
-            onClick={async () => {
-              if (!form.name.trim()) return;
-              await create({
-                name: form.name,
-                city_id: form.city_id || null,
-                address: form.address || null,
-                principal: form.principal || null,
-                phone: form.phone || null,
-              });
-              setForm({ name: "", city_id: "", address: "", principal: "", phone: "" });
-            }}
-          >
-            <Plus className="mr-2 size-4" /> Adicionar
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              className="h-11 flex-1"
+              onClick={async () => {
+                if (!form.name.trim()) return;
+                const payload = {
+                  name: form.name,
+                  city_id: form.city_id || null,
+                  address: form.address || null,
+                  principal: form.principal || null,
+                  phone: form.phone || null,
+                };
+                if (editingId) await update(editingId, payload);
+                else await create(payload);
+                reset();
+              }}
+            >
+              {editingId ? "Salvar" : (<><Plus className="mr-2 size-4" /> Adicionar</>)}
+            </Button>
+            {editingId && (
+              <Button className="h-11" variant="ghost" onClick={reset}>Cancelar</Button>
+            )}
+          </div>
         </div>
         <RowList
           rows={data ?? []}
           onRemove={remove}
+          onRestore={restore}
+          onEdit={(r) => {
+            setEditingId(r.id);
+            setForm({
+              name: r.name ?? "",
+              city_id: r.city_id ?? "",
+              address: r.address ?? "",
+              principal: r.principal ?? "",
+              phone: r.phone ?? "",
+            });
+          }}
           render={(r) => (
             <>
               <p className="text-sm font-medium">{r.name}</p>
@@ -387,6 +411,7 @@ function SchoolsTab() {
             </>
           )}
         />
+
       </CardContent>
     </Card>
   );
