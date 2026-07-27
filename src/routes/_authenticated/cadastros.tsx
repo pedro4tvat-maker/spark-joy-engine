@@ -180,9 +180,16 @@ function SimpleTab({
   extraLabel?: string;
 }) {
   const { data } = useRows(table);
-  const { create, remove } = useRegistryActions(table);
+  const { create, update, remove, restore } = useRegistryActions(table);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [extraValue, setExtraValue] = useState("");
+
+  function reset() {
+    setEditingId(null);
+    setName("");
+    setExtraValue("");
+  }
 
   return (
     <Card>
@@ -206,17 +213,27 @@ function SimpleTab({
             className="h-11"
             onClick={async () => {
               if (!name.trim()) return;
-              await create(extra ? { name, [extra]: extraValue || null } : { name });
-              setName("");
-              setExtraValue("");
+              const payload = extra ? { name, [extra]: extraValue || null } : { name };
+              if (editingId) await update(editingId, payload);
+              else await create(payload);
+              reset();
             }}
           >
-            <Plus className="mr-2 size-4" /> Adicionar
+            {editingId ? "Salvar" : (<><Plus className="mr-2 size-4" /> Adicionar</>)}
           </Button>
+          {editingId && (
+            <Button className="h-11" variant="ghost" onClick={reset}>Cancelar</Button>
+          )}
         </div>
         <RowList
           rows={data ?? []}
           onRemove={remove}
+          onRestore={restore}
+          onEdit={(r) => {
+            setEditingId(r.id);
+            setName(r.name ?? "");
+            setExtraValue(extra ? (r[extra] ?? "") : "");
+          }}
           render={(r) => (
             <>
               <p className="text-sm font-medium">{r.name}</p>
@@ -226,6 +243,7 @@ function SimpleTab({
             </>
           )}
         />
+
       </CardContent>
     </Card>
   );
