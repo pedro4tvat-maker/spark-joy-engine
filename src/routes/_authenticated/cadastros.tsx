@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -100,17 +100,29 @@ function useRows(table: TableName) {
 
 function useRegistryActions(table: TableName) {
   const queryClient = useQueryClient();
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["registry", table] });
   return {
     async create(payload: Record<string, any>) {
       const { error } = await supabase.from(table).insert(payload as never);
       if (error) return toast.error("Erro ao salvar", { description: error.message });
       toast.success("Cadastro criado");
-      queryClient.invalidateQueries({ queryKey: ["registry", table] });
+      invalidate();
+    },
+    async update(id: string, payload: Record<string, any>) {
+      const { error } = await supabase.from(table).update(payload as never).eq("id", id);
+      if (error) return toast.error("Erro ao atualizar", { description: error.message });
+      toast.success("Cadastro atualizado");
+      invalidate();
     },
     async remove(id: string) {
       const { error } = await supabase.from(table).update({ active: false } as never).eq("id", id);
       if (error) return toast.error("Erro ao remover", { description: error.message });
-      queryClient.invalidateQueries({ queryKey: ["registry", table] });
+      invalidate();
+    },
+    async restore(id: string) {
+      const { error } = await supabase.from(table).update({ active: true } as never).eq("id", id);
+      if (error) return toast.error("Erro ao reativar", { description: error.message });
+      invalidate();
     },
   };
 }
@@ -118,10 +130,14 @@ function useRegistryActions(table: TableName) {
 function RowList({
   rows,
   onRemove,
+  onRestore,
+  onEdit,
   render,
 }: {
   rows: Record<string, any>[];
   onRemove: (id: string) => void;
+  onRestore?: (id: string) => void;
+  onEdit?: (row: Record<string, any>) => void;
   render: (row: Record<string, any>) => React.ReactNode;
 }) {
   return (
@@ -130,17 +146,29 @@ function RowList({
         <p className="py-10 text-center text-sm text-muted-foreground">Nenhum registro.</p>
       )}
       {rows.map((r) => (
-        <div key={r.id} className="flex items-center gap-3 px-3 py-3">
+        <div key={r.id} className="flex items-center gap-2 px-3 py-3">
           <div className="min-w-0 flex-1">{render(r)}</div>
           {!r.active && <Badge variant="secondary">inativo</Badge>}
-          <Button variant="ghost" size="icon" onClick={() => onRemove(r.id)} aria-label="Inativar">
-            <Trash2 className="size-4 text-destructive" />
-          </Button>
+          {onEdit && (
+            <Button variant="ghost" size="icon" onClick={() => onEdit(r)} aria-label="Editar">
+              <Pencil className="size-4" />
+            </Button>
+          )}
+          {r.active === false && onRestore ? (
+            <Button variant="ghost" size="sm" onClick={() => onRestore(r.id)}>
+              Reativar
+            </Button>
+          ) : (
+            <Button variant="ghost" size="icon" onClick={() => onRemove(r.id)} aria-label="Inativar">
+              <Trash2 className="size-4 text-destructive" />
+            </Button>
+          )}
         </div>
       ))}
     </div>
   );
 }
+
 
 function SimpleTab({
   table,
@@ -152,9 +180,16 @@ function SimpleTab({
   extraLabel?: string;
 }) {
   const { data } = useRows(table);
-  const { create, remove } = useRegistryActions(table);
+  const { create, update, remove, restore } = useRegistryActions(table);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [extraValue, setExtraValue] = useState("");
+
+  function reset() {
+    setEditingId(null);
+    setName("");
+    setExtraValue("");
+  }
 
   return (
     <Card>
@@ -178,17 +213,27 @@ function SimpleTab({
             className="h-11"
             onClick={async () => {
               if (!name.trim()) return;
-              await create(extra ? { name, [extra]: extraValue || null } : { name });
-              setName("");
-              setExtraValue("");
+              const payload = extra ? { name, [extra]: extraValue || null } : { name };
+              if (editingId) await update(editingId, payload);
+              else await create(payload);
+              reset();
             }}
           >
-            <Plus className="mr-2 size-4" /> Adicionar
+            {editingId ? "Salvar" : (<><Plus className="mr-2 size-4" /> Adicionar</>)}
           </Button>
+          {editingId && (
+            <Button className="h-11" variant="ghost" onClick={reset}>Cancelar</Button>
+          )}
         </div>
         <RowList
           rows={data ?? []}
           onRemove={remove}
+          onRestore={restore}
+          onEdit={(r) => {
+            setEditingId(r.id);
+            setName(r.name ?? "");
+            setExtraValue(extra ? (r[extra] ?? "") : "");
+          }}
           render={(r) => (
             <>
               <p className="text-sm font-medium">{r.name}</p>
@@ -198,6 +243,7 @@ function SimpleTab({
             </>
           )}
         />
+
       </CardContent>
     </Card>
   );
@@ -205,8 +251,14 @@ function SimpleTab({
 
 function CitiesTab() {
   const { data } = useRows("cities");
-  const { create, remove } = useRegistryActions("cities");
+  const { create, update, remove, restore } = useRegistryActions("cities");
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", state: "" });
+
+  function reset() {
+    setEditingId(null);
+    setForm({ name: "", state: "" });
+  }
 
   return (
     <Card>
@@ -231,22 +283,32 @@ function CitiesTab() {
               if (!form.name.trim() || form.state.length !== 2) {
                 return toast.error("Informe cidade e UF");
               }
-              await create(form);
-              setForm({ name: "", state: "" });
+              if (editingId) await update(editingId, form);
+              else await create(form);
+              reset();
             }}
           >
-            <Plus className="mr-2 size-4" /> Adicionar
+            {editingId ? "Salvar" : (<><Plus className="mr-2 size-4" /> Adicionar</>)}
           </Button>
+          {editingId && (
+            <Button className="h-11" variant="ghost" onClick={reset}>Cancelar</Button>
+          )}
         </div>
         <RowList
           rows={data ?? []}
           onRemove={remove}
+          onRestore={restore}
+          onEdit={(r) => {
+            setEditingId(r.id);
+            setForm({ name: r.name ?? "", state: r.state ?? "" });
+          }}
           render={(r) => (
             <p className="text-sm font-medium">
               {r.name} <span className="text-muted-foreground">/ {r.state}</span>
             </p>
           )}
         />
+
       </CardContent>
     </Card>
   );
@@ -255,10 +317,16 @@ function CitiesTab() {
 function SchoolsTab() {
   const { data } = useRows("schools");
   const { data: cities } = useRows("cities");
-  const { create, remove } = useRegistryActions("schools");
+  const { create, update, remove, restore } = useRegistryActions("schools");
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", city_id: "", address: "", principal: "", phone: "" });
 
   const cityName = (id: string | null) => (cities ?? []).find((c) => c.id === id)?.name ?? "—";
+
+  function reset() {
+    setEditingId(null);
+    setForm({ name: "", city_id: "", address: "", principal: "", phone: "" });
+  }
 
   return (
     <Card>
@@ -296,26 +364,44 @@ function SchoolsTab() {
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
-          <Button
-            className="h-11"
-            onClick={async () => {
-              if (!form.name.trim()) return;
-              await create({
-                name: form.name,
-                city_id: form.city_id || null,
-                address: form.address || null,
-                principal: form.principal || null,
-                phone: form.phone || null,
-              });
-              setForm({ name: "", city_id: "", address: "", principal: "", phone: "" });
-            }}
-          >
-            <Plus className="mr-2 size-4" /> Adicionar
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              className="h-11 flex-1"
+              onClick={async () => {
+                if (!form.name.trim()) return;
+                const payload = {
+                  name: form.name,
+                  city_id: form.city_id || null,
+                  address: form.address || null,
+                  principal: form.principal || null,
+                  phone: form.phone || null,
+                };
+                if (editingId) await update(editingId, payload);
+                else await create(payload);
+                reset();
+              }}
+            >
+              {editingId ? "Salvar" : (<><Plus className="mr-2 size-4" /> Adicionar</>)}
+            </Button>
+            {editingId && (
+              <Button className="h-11" variant="ghost" onClick={reset}>Cancelar</Button>
+            )}
+          </div>
         </div>
         <RowList
           rows={data ?? []}
           onRemove={remove}
+          onRestore={restore}
+          onEdit={(r) => {
+            setEditingId(r.id);
+            setForm({
+              name: r.name ?? "",
+              city_id: r.city_id ?? "",
+              address: r.address ?? "",
+              principal: r.principal ?? "",
+              phone: r.phone ?? "",
+            });
+          }}
           render={(r) => (
             <>
               <p className="text-sm font-medium">{r.name}</p>
@@ -325,6 +411,7 @@ function SchoolsTab() {
             </>
           )}
         />
+
       </CardContent>
     </Card>
   );
@@ -332,10 +419,16 @@ function SchoolsTab() {
 
 function EmployeesTab() {
   const { data } = useRows("employees");
-  const { create, remove } = useRegistryActions("employees");
+  const { create, update, remove, restore } = useRegistryActions("employees");
   const { options: jobRoles } = useListOptions("job_role", JOB_ROLES);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", job_role: "", phone: "" });
   const jobRole = form.job_role || jobRoles[0] || "";
+
+  function reset() {
+    setEditingId(null);
+    setForm({ name: "", job_role: "", phone: "" });
+  }
 
   return (
     <Card>
@@ -365,25 +458,37 @@ function EmployeesTab() {
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
-          <Button
-            className="h-11"
-            onClick={async () => {
-              if (!form.name.trim()) return;
-              await create({
-                name: form.name,
-                job_role: jobRole,
-                phone: form.phone || null,
-              });
-              setForm({ name: "", job_role: "", phone: "" });
-            }}
-          >
-            <Plus className="mr-2 size-4" /> Adicionar
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              className="h-11 flex-1"
+              onClick={async () => {
+                if (!form.name.trim()) return;
+                const payload = {
+                  name: form.name,
+                  job_role: jobRole,
+                  phone: form.phone || null,
+                };
+                if (editingId) await update(editingId, payload);
+                else await create(payload);
+                reset();
+              }}
+            >
+              {editingId ? "Salvar" : (<><Plus className="mr-2 size-4" /> Adicionar</>)}
+            </Button>
+            {editingId && (
+              <Button className="h-11" variant="ghost" onClick={reset}>Cancelar</Button>
+            )}
+          </div>
         </div>
 
         <RowList
           rows={data ?? []}
           onRemove={remove}
+          onRestore={restore}
+          onEdit={(r) => {
+            setEditingId(r.id);
+            setForm({ name: r.name ?? "", job_role: r.job_role ?? "", phone: r.phone ?? "" });
+          }}
           render={(r) => (
             <>
               <p className="text-sm font-medium">{r.name}</p>
@@ -391,6 +496,7 @@ function EmployeesTab() {
             </>
           )}
         />
+
       </CardContent>
     </Card>
   );
