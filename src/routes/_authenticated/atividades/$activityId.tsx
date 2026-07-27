@@ -66,7 +66,7 @@ function ActivityDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("activities")
-        .select("*, cities(name, state), schools(name, address), teams(name)")
+        .select("*, cities(name, state), schools(name, address)")
         .eq("id", activityId)
         .maybeSingle();
       return data;
@@ -117,6 +117,30 @@ function ActivityDetailPage() {
         .select("*")
         .eq("activity_id", activityId)
         .order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+
+  const { data: team } = useQuery({
+    queryKey: ["activity-team", activityId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("activity_team")
+        .select("*")
+        .eq("activity_id", activityId)
+        .order("created_at");
+      return data ?? [];
+    },
+  });
+
+  const { data: employees } = useQuery({
+    queryKey: ["employees-active"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("employees")
+        .select("id, name, job_role, user_id")
+        .eq("active", true)
+        .order("name");
       return data ?? [];
     },
   });
