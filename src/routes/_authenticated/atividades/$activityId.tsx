@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Paperclip, Pencil, Plus, Send, Trash2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { useListOptions } from "@/hooks/use-list-options";
 import { useSessionProfile } from "@/hooks/use-session-profile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -155,7 +156,8 @@ function ActivityDetailPage() {
 
   const [comment, setComment] = useState("");
   const [newItem, setNewItem] = useState({ os_number: "", student_name: "", amount_sold: "", amount_received: "" });
-  const [uploadCategory, setUploadCategory] = useState(DOCUMENT_CATEGORIES[0]);
+  const { options: docCategories } = useListOptions("document_category", DOCUMENT_CATEGORIES);
+  const [uploadCategory, setUploadCategory] = useState("");
   const [uploading, setUploading] = useState(false);
   const [memberId, setMemberId] = useState("");
 
@@ -539,10 +541,10 @@ function ActivityDetailPage() {
           <Card>
             <CardContent className="space-y-4 p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <Select value={uploadCategory} onValueChange={setUploadCategory}>
-                  <SelectTrigger className="h-11 w-52"><SelectValue /></SelectTrigger>
+                <Select value={uploadCategory || docCategories[0]} onValueChange={setUploadCategory}>
+                  <SelectTrigger className="h-11 w-52"><SelectValue placeholder="Categoria" /></SelectTrigger>
                   <SelectContent>
-                    {DOCUMENT_CATEGORIES.map((c) => (
+                    {docCategories.map((c) => (
                       <SelectItem key={c} value={c}>{c}</SelectItem>
                     ))}
                   </SelectContent>
