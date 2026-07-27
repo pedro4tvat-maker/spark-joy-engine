@@ -240,16 +240,6 @@ export function ActivityFormDialog({ trigger, defaultDate, activityId }: Props) 
             </Select>
           </Field>
 
-          <Field label="Equipe">
-            <Select value={form.team_id} onValueChange={(v) => set("team_id", v)}>
-              <SelectTrigger className="h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>
-                {(master?.teams ?? []).map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
 
           <Field label="Responsável">
             <Select value={form.owner_id} onValueChange={(v) => set("owner_id", v)}>
