@@ -177,6 +177,29 @@ function ActivityDetailPage() {
     await queryClient.invalidateQueries();
   }
 
+  async function addMember() {
+    const emp = (employees ?? []).find((e) => e.id === memberId);
+    if (!emp) return;
+    const { error } = await supabase.from("activity_team").insert({
+      activity_id: activityId,
+      employee_id: emp.id,
+      user_id: emp.user_id ?? null,
+      name: emp.name,
+      job_role: emp.job_role,
+    });
+    if (error) return toast.error("Erro ao adicionar", { description: error.message });
+    setMemberId("");
+    toast.success("Funcionário adicionado à equipe");
+    refresh();
+  }
+
+  async function removeMember(id: string) {
+    await supabase.from("activity_team").delete().eq("id", id);
+    refresh();
+  }
+
+
+
   async function toggleCheck(id: string, done: boolean) {
     await supabase.from("activity_checklists").update({ done }).eq("id", id);
     refresh();
