@@ -540,6 +540,19 @@ function ActivityDetailPage() {
                   value={newItem.student_name}
                   onChange={(e) => setNewItem({ ...newItem, student_name: e.target.value })}
                 />
+                <Select
+                  value={newItem.payment_method_id}
+                  onValueChange={(v) => setNewItem({ ...newItem, payment_method_id: v })}
+                >
+                  <SelectTrigger className="h-11 sm:col-span-2">
+                    <SelectValue placeholder="Forma de pagamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(paymentMethods ?? []).map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Input
                   className="h-11"
                   type="number"
