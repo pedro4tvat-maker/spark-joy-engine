@@ -146,6 +146,18 @@ function ActivityDetailPage() {
     },
   });
 
+  const { data: paymentMethods } = useQuery({
+    queryKey: ["payment-methods-active"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("payment_methods")
+        .select("id, name")
+        .eq("active", true)
+        .order("name");
+      return data ?? [];
+    },
+  });
+
   const { data: authors } = useQuery({
     queryKey: ["comment-authors", activityId],
     queryFn: async () => {
