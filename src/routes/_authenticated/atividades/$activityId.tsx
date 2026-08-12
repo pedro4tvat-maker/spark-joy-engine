@@ -280,10 +280,40 @@ function ActivityDetailPage() {
       student_name: newItem.student_name || null,
       amount_sold: Number(newItem.amount_sold || 0),
       amount_received: Number(newItem.amount_received || 0),
+      payment_method_id: newItem.payment_method_id || null,
     });
     if (error) return toast.error("Erro ao adicionar item", { description: error.message });
-    setNewItem({ os_number: "", student_name: "", amount_sold: "", amount_received: "" });
+    setNewItem({
+      os_number: "",
+      student_name: "",
+      amount_sold: "",
+      amount_received: "",
+      payment_method_id: "",
+    });
     refresh();
+  }
+
+  async function saveFinance() {
+    setSavingFinance(true);
+    const payload = Object.fromEntries(
+      FINANCE_FIELDS.map((f) => [f.key, finance[f.key] === "" ? null : Number(finance[f.key])]),
+    );
+    const { error } = await supabase.from("activities").update(payload).eq("id", activityId);
+    setSavingFinance(false);
+    if (error) return toast.error("Erro ao salvar financeiro", { description: error.message });
+    setFinanceDirty(false);
+    toast.success("Financeiro salvo");
+    refresh();
+  }
+
+  function fillFromItems() {
+    setFinance((prev) => ({
+      ...prev,
+      amount_sold: String(itemsTotals.sold),
+      amount_received: String(itemsTotals.received),
+      sales_count: String(itemsTotals.count),
+    }));
+    setFinanceDirty(true);
   }
 
   async function removeItem(id: string) {
