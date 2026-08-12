@@ -167,7 +167,26 @@ function ActivityDetailPage() {
   });
 
   const [comment, setComment] = useState("");
-  const [newItem, setNewItem] = useState({ os_number: "", student_name: "", amount_sold: "", amount_received: "" });
+  const [newItem, setNewItem] = useState({
+    os_number: "",
+    student_name: "",
+    amount_sold: "",
+    amount_received: "",
+    payment_method_id: "",
+  });
+  const [finance, setFinance] = useState<Record<FinanceKey, string>>(EMPTY_FINANCE);
+  const [financeDirty, setFinanceDirty] = useState(false);
+  const [savingFinance, setSavingFinance] = useState(false);
+
+  useEffect(() => {
+    if (!activity) return;
+    setFinance(
+      Object.fromEntries(
+        FINANCE_FIELDS.map((f) => [f.key, activity[f.key] == null ? "" : String(activity[f.key])]),
+      ) as Record<FinanceKey, string>,
+    );
+    setFinanceDirty(false);
+  }, [activity]);
   const { options: docCategories } = useListOptions("document_category", DOCUMENT_CATEGORIES);
   const [uploadCategory, setUploadCategory] = useState("");
   const [uploading, setUploading] = useState(false);
