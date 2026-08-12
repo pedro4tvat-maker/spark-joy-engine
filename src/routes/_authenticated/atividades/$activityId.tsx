@@ -750,11 +750,3 @@ function ActivityDetailPage() {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border bg-card p-4">
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="font-display text-lg font-semibold">{value}</p>
-    </div>
-  );
-}
