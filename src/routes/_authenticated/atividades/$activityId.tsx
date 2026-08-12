@@ -586,16 +586,62 @@ function ActivityDetailPage() {
 
         <TabsContent value="financeiro">
           <Card>
-            <CardContent className="grid gap-4 p-5 sm:grid-cols-3">
-              <Metric label="Vendido" value={formatMoney(Number(activity.amount_sold ?? 0))} />
-              <Metric label="Recebido" value={formatMoney(Number(activity.amount_received ?? 0))} />
-              <Metric label="Dinheiro" value={formatMoney(Number(activity.amount_cash ?? 0))} />
-              <Metric label="PIX" value={formatMoney(Number(activity.amount_pix ?? 0))} />
-              <Metric label="Cartão" value={formatMoney(Number(activity.amount_card ?? 0))} />
-              <Metric label="Atendimentos" value={String(activity.service_count ?? 0)} />
-              <Metric label="Alunos" value={String(activity.students_count ?? 0)} />
-              <Metric label="Vendas" value={String(activity.sales_count ?? 0)} />
-              <Metric label="Colaboradores" value={String(activity.collaborators_count ?? 0)} />
+            <CardHeader>
+              <CardTitle className="text-base">Dados financeiros da venda</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 p-5 pt-0">
+              <div className="grid gap-3 sm:grid-cols-3">
+                {FINANCE_FIELDS.map((f) => (
+                  <div key={f.key} className="space-y-1.5">
+                    <label className="text-xs uppercase tracking-wide text-muted-foreground" htmlFor={f.key}>
+                      {f.label}
+                    </label>
+                    <Input
+                      id={f.key}
+                      className="h-11"
+                      type="number"
+                      inputMode="decimal"
+                      step={f.money ? "0.01" : "1"}
+                      placeholder={f.money ? "0,00" : "0"}
+                      value={finance[f.key]}
+                      onChange={(e) => {
+                        setFinance({ ...finance, [f.key]: e.target.value });
+                        setFinanceDirty(true);
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+                <p className={splitMismatch ? "font-medium text-destructive" : "text-muted-foreground"}>
+                  Dinheiro + PIX + Cartão: {formatMoney(splitTotal)}
+                  {splitMismatch
+                    ? ` · diferente do valor recebido (${formatMoney(Number(finance.amount_received || 0))})`
+                    : " · confere com o valor recebido"}
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  Itens / OS lançados: {itemsTotals.count} · Vendido {formatMoney(itemsTotals.sold)} ·
+                  Recebido {formatMoney(itemsTotals.received)}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button className="h-11" onClick={saveFinance} disabled={savingFinance || !financeDirty}>
+                  {savingFinance ? "Salvando…" : "Salvar financeiro"}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-11"
+                  onClick={fillFromItems}
+                  disabled={itemsTotals.count === 0}
+                >
+                  Usar totais dos itens
+                </Button>
+                {financeDirty && (
+                  <span className="text-xs text-muted-foreground">Alterações não salvas</span>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
