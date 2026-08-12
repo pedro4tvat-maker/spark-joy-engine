@@ -295,9 +295,18 @@ function ActivityDetailPage() {
 
   async function saveFinance() {
     setSavingFinance(true);
-    const payload = Object.fromEntries(
-      FINANCE_FIELDS.map((f) => [f.key, finance[f.key] === "" ? null : Number(finance[f.key])]),
-    );
+    const num = (k: FinanceKey) => (finance[k] === "" ? null : Number(finance[k]));
+    const payload = {
+      amount_sold: num("amount_sold"),
+      amount_received: num("amount_received"),
+      amount_cash: num("amount_cash"),
+      amount_pix: num("amount_pix"),
+      amount_card: num("amount_card"),
+      service_count: num("service_count"),
+      students_count: num("students_count"),
+      sales_count: num("sales_count"),
+      collaborators_count: num("collaborators_count"),
+    };
     const { error } = await supabase.from("activities").update(payload).eq("id", activityId);
     setSavingFinance(false);
     if (error) return toast.error("Erro ao salvar financeiro", { description: error.message });
