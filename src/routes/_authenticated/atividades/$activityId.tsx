@@ -223,6 +223,17 @@ function ActivityDetailPage() {
 
   const tone = toneClasses(eventTone(activity.type, activity.status, activity.priority));
   const doneCount = (checklist ?? []).filter((c) => c.done).length;
+  const itemsTotals = (items ?? []).reduce(
+    (acc, it) => ({
+      sold: acc.sold + Number(it.amount_sold ?? 0),
+      received: acc.received + Number(it.amount_received ?? 0),
+      count: acc.count + 1,
+    }),
+    { sold: 0, received: 0, count: 0 },
+  );
+  const splitTotal =
+    Number(finance.amount_cash || 0) + Number(finance.amount_pix || 0) + Number(finance.amount_card || 0);
+  const splitMismatch = Math.abs(splitTotal - Number(finance.amount_received || 0)) > 0.009;
 
   async function refresh() {
     await queryClient.invalidateQueries();
