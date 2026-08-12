@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -56,6 +56,24 @@ export const Route = createFileRoute("/_authenticated/atividades/$activityId")({
     ],
   }),
 });
+
+const FINANCE_FIELDS = [
+  { key: "amount_sold", label: "Valor vendido", money: true },
+  { key: "amount_received", label: "Valor recebido", money: true },
+  { key: "amount_cash", label: "Dinheiro", money: true },
+  { key: "amount_pix", label: "PIX", money: true },
+  { key: "amount_card", label: "Cartão", money: true },
+  { key: "service_count", label: "Atendimentos", money: false },
+  { key: "students_count", label: "Alunos atendidos", money: false },
+  { key: "sales_count", label: "Vendas", money: false },
+  { key: "collaborators_count", label: "Colaboradores", money: false },
+] as const;
+
+type FinanceKey = (typeof FINANCE_FIELDS)[number]["key"];
+
+const EMPTY_FINANCE = Object.fromEntries(
+  FINANCE_FIELDS.map((f) => [f.key, ""]),
+) as Record<FinanceKey, string>;
 
 function ActivityDetailPage() {
   const { activityId } = useParams({ from: "/_authenticated/atividades/$activityId" });
@@ -146,6 +164,18 @@ function ActivityDetailPage() {
     },
   });
 
+  const { data: paymentMethods } = useQuery({
+    queryKey: ["payment-methods-active"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("payment_methods")
+        .select("id, name")
+        .eq("active", true)
+        .order("name");
+      return data ?? [];
+    },
+  });
+
   const { data: authors } = useQuery({
     queryKey: ["comment-authors", activityId],
     queryFn: async () => {
@@ -155,7 +185,26 @@ function ActivityDetailPage() {
   });
 
   const [comment, setComment] = useState("");
-  const [newItem, setNewItem] = useState({ os_number: "", student_name: "", amount_sold: "", amount_received: "" });
+  const [newItem, setNewItem] = useState({
+    os_number: "",
+    student_name: "",
+    amount_sold: "",
+    amount_received: "",
+    payment_method_id: "",
+  });
+  const [finance, setFinance] = useState<Record<FinanceKey, string>>(EMPTY_FINANCE);
+  const [financeDirty, setFinanceDirty] = useState(false);
+  const [savingFinance, setSavingFinance] = useState(false);
+
+  useEffect(() => {
+    if (!activity) return;
+    setFinance(
+      Object.fromEntries(
+        FINANCE_FIELDS.map((f) => [f.key, activity[f.key] == null ? "" : String(activity[f.key])]),
+      ) as Record<FinanceKey, string>,
+    );
+    setFinanceDirty(false);
+  }, [activity]);
   const { options: docCategories } = useListOptions("document_category", DOCUMENT_CATEGORIES);
   const [uploadCategory, setUploadCategory] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -174,6 +223,17 @@ function ActivityDetailPage() {
 
   const tone = toneClasses(eventTone(activity.type, activity.status, activity.priority));
   const doneCount = (checklist ?? []).filter((c) => c.done).length;
+  const itemsTotals = (items ?? []).reduce(
+    (acc, it) => ({
+      sold: acc.sold + Number(it.amount_sold ?? 0),
+      received: acc.received + Number(it.amount_received ?? 0),
+      count: acc.count + 1,
+    }),
+    { sold: 0, received: 0, count: 0 },
+  );
+  const splitTotal =
+    Number(finance.amount_cash || 0) + Number(finance.amount_pix || 0) + Number(finance.amount_card || 0);
+  const splitMismatch = Math.abs(splitTotal - Number(finance.amount_received || 0)) > 0.009;
 
   async function refresh() {
     await queryClient.invalidateQueries();
@@ -231,10 +291,49 @@ function ActivityDetailPage() {
       student_name: newItem.student_name || null,
       amount_sold: Number(newItem.amount_sold || 0),
       amount_received: Number(newItem.amount_received || 0),
+      payment_method_id: newItem.payment_method_id || null,
     });
     if (error) return toast.error("Erro ao adicionar item", { description: error.message });
-    setNewItem({ os_number: "", student_name: "", amount_sold: "", amount_received: "" });
+    setNewItem({
+      os_number: "",
+      student_name: "",
+      amount_sold: "",
+      amount_received: "",
+      payment_method_id: "",
+    });
     refresh();
+  }
+
+  async function saveFinance() {
+    setSavingFinance(true);
+    const num = (k: FinanceKey) => (finance[k] === "" ? null : Number(finance[k]));
+    const payload = {
+      amount_sold: num("amount_sold"),
+      amount_received: num("amount_received"),
+      amount_cash: num("amount_cash"),
+      amount_pix: num("amount_pix"),
+      amount_card: num("amount_card"),
+      service_count: num("service_count"),
+      students_count: num("students_count"),
+      sales_count: num("sales_count"),
+      collaborators_count: num("collaborators_count"),
+    };
+    const { error } = await supabase.from("activities").update(payload).eq("id", activityId);
+    setSavingFinance(false);
+    if (error) return toast.error("Erro ao salvar financeiro", { description: error.message });
+    setFinanceDirty(false);
+    toast.success("Financeiro salvo");
+    refresh();
+  }
+
+  function fillFromItems() {
+    setFinance((prev) => ({
+      ...prev,
+      amount_sold: String(itemsTotals.sold),
+      amount_received: String(itemsTotals.received),
+      sales_count: String(itemsTotals.count),
+    }));
+    setFinanceDirty(true);
   }
 
   async function removeItem(id: string) {
@@ -441,6 +540,19 @@ function ActivityDetailPage() {
                   value={newItem.student_name}
                   onChange={(e) => setNewItem({ ...newItem, student_name: e.target.value })}
                 />
+                <Select
+                  value={newItem.payment_method_id}
+                  onValueChange={(v) => setNewItem({ ...newItem, payment_method_id: v })}
+                >
+                  <SelectTrigger className="h-11 sm:col-span-2">
+                    <SelectValue placeholder="Forma de pagamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(paymentMethods ?? []).map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Input
                   className="h-11"
                   type="number"
@@ -473,6 +585,9 @@ function ActivityDetailPage() {
                       <p className="text-xs text-muted-foreground">
                         Vendido {formatMoney(Number(it.amount_sold))} · Recebido{" "}
                         {formatMoney(Number(it.amount_received))}
+                        {it.payment_method_id
+                          ? ` · ${(paymentMethods ?? []).find((p) => p.id === it.payment_method_id)?.name ?? "—"}`
+                          : ""}
                       </p>
                     </div>
                     <Button variant="ghost" size="icon" onClick={() => removeItem(it.id)} aria-label="Remover">
@@ -487,16 +602,62 @@ function ActivityDetailPage() {
 
         <TabsContent value="financeiro">
           <Card>
-            <CardContent className="grid gap-4 p-5 sm:grid-cols-3">
-              <Metric label="Vendido" value={formatMoney(Number(activity.amount_sold ?? 0))} />
-              <Metric label="Recebido" value={formatMoney(Number(activity.amount_received ?? 0))} />
-              <Metric label="Dinheiro" value={formatMoney(Number(activity.amount_cash ?? 0))} />
-              <Metric label="PIX" value={formatMoney(Number(activity.amount_pix ?? 0))} />
-              <Metric label="Cartão" value={formatMoney(Number(activity.amount_card ?? 0))} />
-              <Metric label="Atendimentos" value={String(activity.service_count ?? 0)} />
-              <Metric label="Alunos" value={String(activity.students_count ?? 0)} />
-              <Metric label="Vendas" value={String(activity.sales_count ?? 0)} />
-              <Metric label="Colaboradores" value={String(activity.collaborators_count ?? 0)} />
+            <CardHeader>
+              <CardTitle className="text-base">Dados financeiros da venda</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 p-5 pt-0">
+              <div className="grid gap-3 sm:grid-cols-3">
+                {FINANCE_FIELDS.map((f) => (
+                  <div key={f.key} className="space-y-1.5">
+                    <label className="text-xs uppercase tracking-wide text-muted-foreground" htmlFor={f.key}>
+                      {f.label}
+                    </label>
+                    <Input
+                      id={f.key}
+                      className="h-11"
+                      type="number"
+                      inputMode="decimal"
+                      step={f.money ? "0.01" : "1"}
+                      placeholder={f.money ? "0,00" : "0"}
+                      value={finance[f.key]}
+                      onChange={(e) => {
+                        setFinance({ ...finance, [f.key]: e.target.value });
+                        setFinanceDirty(true);
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+                <p className={splitMismatch ? "font-medium text-destructive" : "text-muted-foreground"}>
+                  Dinheiro + PIX + Cartão: {formatMoney(splitTotal)}
+                  {splitMismatch
+                    ? ` · diferente do valor recebido (${formatMoney(Number(finance.amount_received || 0))})`
+                    : " · confere com o valor recebido"}
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  Itens / OS lançados: {itemsTotals.count} · Vendido {formatMoney(itemsTotals.sold)} ·
+                  Recebido {formatMoney(itemsTotals.received)}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button className="h-11" onClick={saveFinance} disabled={savingFinance || !financeDirty}>
+                  {savingFinance ? "Salvando…" : "Salvar financeiro"}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-11"
+                  onClick={fillFromItems}
+                  disabled={itemsTotals.count === 0}
+                >
+                  Usar totais dos itens
+                </Button>
+                {financeDirty && (
+                  <span className="text-xs text-muted-foreground">Alterações não salvas</span>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -589,11 +750,3 @@ function ActivityDetailPage() {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border bg-card p-4">
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="font-display text-lg font-semibold">{value}</p>
-    </div>
-  );
-}
