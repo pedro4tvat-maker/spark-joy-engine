@@ -585,6 +585,9 @@ function ActivityDetailPage() {
                       <p className="text-xs text-muted-foreground">
                         Vendido {formatMoney(Number(it.amount_sold))} · Recebido{" "}
                         {formatMoney(Number(it.amount_received))}
+                        {it.payment_method_id
+                          ? ` · ${(paymentMethods ?? []).find((p) => p.id === it.payment_method_id)?.name ?? "—"}`
+                          : ""}
                       </p>
                     </div>
                     <Button variant="ghost" size="icon" onClick={() => removeItem(it.id)} aria-label="Remover">
