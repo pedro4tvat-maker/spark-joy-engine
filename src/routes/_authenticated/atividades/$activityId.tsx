@@ -6,7 +6,7 @@ import { ArrowLeft, Paperclip, Pencil, Plus, Send, Trash2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useListOptions } from "@/hooks/use-list-options";
-import { useSessionProfile } from "@/hooks/use-session-profile";
+import { isManagerRole, useSessionProfile } from "@/hooks/use-session-profile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,15 +58,15 @@ export const Route = createFileRoute("/_authenticated/atividades/$activityId")({
 });
 
 const FINANCE_FIELDS = [
-  { key: "amount_sold", label: "Valor vendido", money: true },
-  { key: "amount_received", label: "Valor recebido", money: true },
-  { key: "amount_cash", label: "Dinheiro", money: true },
-  { key: "amount_pix", label: "PIX", money: true },
-  { key: "amount_card", label: "Cartão", money: true },
-  { key: "service_count", label: "Atendimentos", money: false },
-  { key: "students_count", label: "Alunos atendidos", money: false },
-  { key: "sales_count", label: "Vendas", money: false },
-  { key: "collaborators_count", label: "Colaboradores", money: false },
+  { key: "amount_sold", label: "Valor vendido", money: true, source: "finance" },
+  { key: "amount_received", label: "Valor recebido", money: true, source: "finance" },
+  { key: "amount_cash", label: "Dinheiro", money: true, source: "finance" },
+  { key: "amount_pix", label: "PIX", money: true, source: "finance" },
+  { key: "amount_card", label: "Cartão", money: true, source: "finance" },
+  { key: "service_count", label: "Atendimentos", money: false, source: "finance" },
+  { key: "students_count", label: "Alunos atendidos", money: false, source: "activity" },
+  { key: "sales_count", label: "Vendas", money: false, source: "finance" },
+  { key: "collaborators_count", label: "Colaboradores", money: false, source: "activity" },
 ] as const;
 
 type FinanceKey = (typeof FINANCE_FIELDS)[number]["key"];
@@ -75,10 +75,13 @@ const EMPTY_FINANCE = Object.fromEntries(
   FINANCE_FIELDS.map((f) => [f.key, ""]),
 ) as Record<FinanceKey, string>;
 
+
 function ActivityDetailPage() {
   const { activityId } = useParams({ from: "/_authenticated/atividades/$activityId" });
   const queryClient = useQueryClient();
   const { data: profile } = useSessionProfile();
+  const isManager = isManagerRole(profile?.roles);
+
 
   const { data: activity, isLoading } = useQuery({
     queryKey: ["activity", activityId],
@@ -118,6 +121,7 @@ function ActivityDetailPage() {
 
   const { data: items } = useQuery({
     queryKey: ["delivery-items", activityId],
+    enabled: isManager,
     queryFn: async () => {
       const { data } = await supabase
         .from("delivery_items")
@@ -127,6 +131,20 @@ function ActivityDetailPage() {
       return data ?? [];
     },
   });
+
+  const { data: financeData } = useQuery({
+    queryKey: ["activity-finance", activityId],
+    enabled: isManager,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("activity_finance")
+        .select("*")
+        .eq("activity_id", activityId)
+        .maybeSingle();
+      return data;
+    },
+  });
+
 
   const { data: documents } = useQuery({
     queryKey: ["documents", activityId],
@@ -198,13 +216,19 @@ function ActivityDetailPage() {
 
   useEffect(() => {
     if (!activity) return;
+    const activityRow = activity as Record<string, unknown>;
+    const financeRow = (financeData ?? {}) as Record<string, unknown>;
     setFinance(
       Object.fromEntries(
-        FINANCE_FIELDS.map((f) => [f.key, activity[f.key] == null ? "" : String(activity[f.key])]),
+        FINANCE_FIELDS.map((f) => {
+          const value = f.source === "finance" ? financeRow[f.key] : activityRow[f.key];
+          return [f.key, value == null ? "" : String(value)];
+        }),
       ) as Record<FinanceKey, string>,
     );
     setFinanceDirty(false);
-  }, [activity]);
+  }, [activity, financeData]);
+
   const { options: docCategories } = useListOptions("document_category", DOCUMENT_CATEGORIES);
   const [uploadCategory, setUploadCategory] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -306,25 +330,36 @@ function ActivityDetailPage() {
 
   async function saveFinance() {
     setSavingFinance(true);
-    const num = (k: FinanceKey) => (finance[k] === "" ? null : Number(finance[k]));
-    const payload = {
-      amount_sold: num("amount_sold"),
-      amount_received: num("amount_received"),
-      amount_cash: num("amount_cash"),
-      amount_pix: num("amount_pix"),
-      amount_card: num("amount_card"),
-      service_count: num("service_count"),
-      students_count: num("students_count"),
-      sales_count: num("sales_count"),
-      collaborators_count: num("collaborators_count"),
-    };
-    const { error } = await supabase.from("activities").update(payload).eq("id", activityId);
+    const num = (k: FinanceKey) => (finance[k] === "" ? 0 : Number(finance[k]));
+    const { error } = await supabase.from("activity_finance").upsert(
+      {
+        activity_id: activityId,
+        amount_sold: num("amount_sold"),
+        amount_received: num("amount_received"),
+        amount_cash: num("amount_cash"),
+        amount_pix: num("amount_pix"),
+        amount_card: num("amount_card"),
+        service_count: num("service_count"),
+        sales_count: num("sales_count"),
+      },
+      { onConflict: "activity_id" },
+    );
+    const { error: activityError } = await supabase
+      .from("activities")
+      .update({
+        students_count: finance.students_count === "" ? null : Number(finance.students_count),
+        collaborators_count:
+          finance.collaborators_count === "" ? null : Number(finance.collaborators_count),
+      })
+      .eq("id", activityId);
     setSavingFinance(false);
-    if (error) return toast.error("Erro ao salvar financeiro", { description: error.message });
+    const failure = error ?? activityError;
+    if (failure) return toast.error("Erro ao salvar financeiro", { description: failure.message });
     setFinanceDirty(false);
     toast.success("Financeiro salvo");
     refresh();
   }
+
 
   function fillFromItems() {
     setFinance((prev) => ({
@@ -436,8 +471,8 @@ function ActivityDetailPage() {
         <TabsList className="flex-wrap">
           <TabsTrigger value="checklist">Checklist ({doneCount}/{checklist?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="equipe">Equipe ({team?.length ?? 0})</TabsTrigger>
-          <TabsTrigger value="itens">Itens / OS</TabsTrigger>
-          <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
+          {isManager && <TabsTrigger value="itens">Itens / OS</TabsTrigger>}
+          {isManager && <TabsTrigger value="financeiro">Financeiro</TabsTrigger>}
           <TabsTrigger value="comentarios">Comentários</TabsTrigger>
           <TabsTrigger value="anexos">Anexos</TabsTrigger>
         </TabsList>
@@ -521,6 +556,7 @@ function ActivityDetailPage() {
           </Card>
         </TabsContent>
 
+        {isManager && (
         <TabsContent value="itens">
           <Card>
             <CardHeader>
@@ -599,7 +635,9 @@ function ActivityDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
+        {isManager && (
         <TabsContent value="financeiro">
           <Card>
             <CardHeader>
@@ -661,6 +699,7 @@ function ActivityDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
         <TabsContent value="comentarios">
           <Card>

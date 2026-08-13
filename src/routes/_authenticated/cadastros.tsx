@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { JOB_ROLES } from "@/lib/psvne";
 import { LIST_GROUPS, useListOptions } from "@/hooks/use-list-options";
+import { isManagerRole, useSessionProfile } from "@/hooks/use-session-profile";
 
 export const Route = createFileRoute("/_authenticated/cadastros")({
   component: RegistriesPage,
@@ -52,6 +53,9 @@ type TableName =
   | "payment_methods";
 
 function RegistriesPage() {
+  const { data: profile } = useSessionProfile();
+  const isManager = isManagerRole(profile?.roles);
+
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <div>
@@ -69,8 +73,8 @@ function RegistriesPage() {
           <TabsTrigger value="labs">Laboratórios</TabsTrigger>
           <TabsTrigger value="partners">Parceiros</TabsTrigger>
           <TabsTrigger value="lens_types">Lentes</TabsTrigger>
-          <TabsTrigger value="payment_methods">Pagamentos</TabsTrigger>
-          <TabsTrigger value="lists">Listas</TabsTrigger>
+          {isManager && <TabsTrigger value="payment_methods">Pagamentos</TabsTrigger>}
+          {isManager && <TabsTrigger value="lists">Listas</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="cities"><CitiesTab /></TabsContent>
@@ -81,12 +85,15 @@ function RegistriesPage() {
         <TabsContent value="labs"><SimpleTab table="labs" extra="phone" extraLabel="Telefone" /></TabsContent>
         <TabsContent value="partners"><SimpleTab table="partners" extra="phone" extraLabel="Telefone" /></TabsContent>
         <TabsContent value="lens_types"><SimpleTab table="lens_types" /></TabsContent>
-        <TabsContent value="payment_methods"><SimpleTab table="payment_methods" /></TabsContent>
-        <TabsContent value="lists"><ListsTab /></TabsContent>
+        {isManager && (
+          <TabsContent value="payment_methods"><SimpleTab table="payment_methods" /></TabsContent>
+        )}
+        {isManager && <TabsContent value="lists"><ListsTab /></TabsContent>}
       </Tabs>
     </div>
   );
 }
+
 
 function useRows(table: TableName) {
   return useQuery({
