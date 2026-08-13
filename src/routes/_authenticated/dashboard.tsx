@@ -55,6 +55,8 @@ function monthRange(base = new Date()) {
 function DashboardPage() {
   const { start, end } = useMemo(() => monthRange(), []);
   const today = new Date().toISOString().slice(0, 10);
+  const { data: profile } = useSessionProfile();
+  const isManager = isManagerRole(profile?.roles);
 
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard", start, end],
@@ -70,14 +72,32 @@ function DashboardPage() {
   });
 
   const activities = data ?? [];
+  const ids = activities.map((a) => a.id);
+
+  const { data: finance } = useQuery({
+    queryKey: ["dashboard-finance", start, end, ids.length],
+    enabled: isManager && ids.length > 0,
+    queryFn: async () => {
+      const { data: rows } = await supabase
+        .from("activity_finance")
+        .select("amount_sold, amount_received")
+        .in("activity_id", ids);
+      return rows ?? [];
+    },
+  });
+
   const todays = activities.filter((a) => a.activity_date === today);
   const upcoming = activities
     .filter((a) => a.activity_date > today && a.status !== "cancelada")
     .slice(0, 6);
   const late = activities.filter((a) => a.status === "atrasada");
   const done = activities.filter((a) => a.status === "concluida");
-  const sold = activities.reduce((s, a) => s + Number(a.amount_sold ?? 0), 0);
-  const received = activities.reduce((s, a) => s + Number(a.amount_received ?? 0), 0);
+  const pending = activities.filter(
+    (a) => a.status === "agendada" || a.status === "em_andamento",
+  );
+  const sold = (finance ?? []).reduce((s, f) => s + Number(f.amount_sold ?? 0), 0);
+  const received = (finance ?? []).reduce((s, f) => s + Number(f.amount_received ?? 0), 0);
+
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
