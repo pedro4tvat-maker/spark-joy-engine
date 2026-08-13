@@ -6,7 +6,7 @@ import { ArrowLeft, Paperclip, Pencil, Plus, Send, Trash2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useListOptions } from "@/hooks/use-list-options";
-import { useSessionProfile } from "@/hooks/use-session-profile";
+import { isManagerRole, useSessionProfile } from "@/hooks/use-session-profile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -80,6 +80,8 @@ function ActivityDetailPage() {
   const { activityId } = useParams({ from: "/_authenticated/atividades/$activityId" });
   const queryClient = useQueryClient();
   const { data: profile } = useSessionProfile();
+  const isManager = isManagerRole(profile?.roles);
+
 
   const { data: activity, isLoading } = useQuery({
     queryKey: ["activity", activityId],
@@ -119,6 +121,7 @@ function ActivityDetailPage() {
 
   const { data: items } = useQuery({
     queryKey: ["delivery-items", activityId],
+    enabled: isManager,
     queryFn: async () => {
       const { data } = await supabase
         .from("delivery_items")
@@ -128,6 +131,20 @@ function ActivityDetailPage() {
       return data ?? [];
     },
   });
+
+  const { data: financeData } = useQuery({
+    queryKey: ["activity-finance", activityId],
+    enabled: isManager,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("activity_finance")
+        .select("*")
+        .eq("activity_id", activityId)
+        .maybeSingle();
+      return data;
+    },
+  });
+
 
   const { data: documents } = useQuery({
     queryKey: ["documents", activityId],
@@ -199,13 +216,19 @@ function ActivityDetailPage() {
 
   useEffect(() => {
     if (!activity) return;
+    const activityRow = activity as Record<string, unknown>;
+    const financeRow = (financeData ?? {}) as Record<string, unknown>;
     setFinance(
       Object.fromEntries(
-        FINANCE_FIELDS.map((f) => [f.key, activity[f.key] == null ? "" : String(activity[f.key])]),
+        FINANCE_FIELDS.map((f) => {
+          const value = f.source === "finance" ? financeRow[f.key] : activityRow[f.key];
+          return [f.key, value == null ? "" : String(value)];
+        }),
       ) as Record<FinanceKey, string>,
     );
     setFinanceDirty(false);
-  }, [activity]);
+  }, [activity, financeData]);
+
   const { options: docCategories } = useListOptions("document_category", DOCUMENT_CATEGORIES);
   const [uploadCategory, setUploadCategory] = useState("");
   const [uploading, setUploading] = useState(false);
