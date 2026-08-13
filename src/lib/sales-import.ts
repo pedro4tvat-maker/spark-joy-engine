@@ -41,6 +41,8 @@ export type ImportPreview = {
   reviewCount: number;
   newActivities: { key: string; cityName: string; schoolName: string; dateISO: string }[];
   existingActivities: number;
+  /** Escolas cujo bairro cadastrado difere do informado na planilha (não sobrescrito). */
+  neighborhoodWarnings: { schoolName: string; current: string; sheet: string }[];
 };
 
 export type ImportResult = {
@@ -201,20 +203,43 @@ export async function buildPreview(rows: SalesRow[]): Promise<ImportPreview> {
   const dates = Array.from(new Set(rows.map((r) => r.dateISO)));
   const [{ data: cities }, { data: schools }, { data: activities }] = await Promise.all([
     supabase.from("cities").select("id, name"),
-    supabase.from("schools").select("id, name, city_id"),
+    supabase.from("schools").select("id, name, city_id, neighborhood"),
     supabase.from("activities").select("id, school_id, activity_date").in("activity_date", dates),
   ]);
 
   const cityByName = new Map((cities ?? []).map((c) => [key(c.name), c.id]));
-  const schoolByKey = new Map((schools ?? []).map((s) => [`${key(s.name)}|${s.city_id ?? ""}`, s.id]));
+  const schoolByKey = new Map(
+    (schools ?? []).map((s) => [
+      `${key(s.name)}|${s.city_id ?? ""}`,
+      { id: s.id, neighborhood: norm(s.neighborhood) },
+    ]),
+  );
   const activityByKey = new Set((activities ?? []).map((a) => `${a.school_id ?? ""}|${a.activity_date}`));
 
   const newActivities: ImportPreview["newActivities"] = [];
   let existingActivities = 0;
 
+  const neighborhoodWarnings: ImportPreview["neighborhoodWarnings"] = [];
+  const warned = new Set<string>();
+
+  rows.forEach((row) => {
+    const cityId = cityByName.get(key(row.cityName));
+    const school = cityId ? schoolByKey.get(`${key(row.schoolName)}|${cityId}`) : undefined;
+    const sheetValue = norm(row.district);
+    if (!school || !sheetValue || !school.neighborhood) return;
+    if (key(school.neighborhood) === key(sheetValue)) return;
+    if (warned.has(school.id)) return;
+    warned.add(school.id);
+    neighborhoodWarnings.push({
+      schoolName: row.schoolName,
+      current: school.neighborhood,
+      sheet: sheetValue,
+    });
+  });
+
   groups.forEach((row, k) => {
     const cityId = cityByName.get(key(row.cityName));
-    const schoolId = cityId ? schoolByKey.get(`${key(row.schoolName)}|${cityId}`) : undefined;
+    const schoolId = cityId ? schoolByKey.get(`${key(row.schoolName)}|${cityId}`)?.id : undefined;
     if (schoolId && activityByKey.has(`${schoolId}|${row.dateISO}`)) existingActivities += 1;
     else
       newActivities.push({
@@ -234,6 +259,7 @@ export async function buildPreview(rows: SalesRow[]): Promise<ImportPreview> {
     reviewCount: rows.filter((r) => r.needsReview).length,
     newActivities,
     existingActivities,
+    neighborhoodWarnings,
   };
 }
 
@@ -244,12 +270,19 @@ export async function runImport(rows: SalesRow[], userId: string | null): Promis
   const activityCache = new Map<string, string>();
   const createdActivities: ImportResult["createdActivities"] = [];
 
+  /** Chaves de escolas existentes sem bairro cadastrado — podem ser preenchidas pela planilha. */
+  const missingNeighborhood = new Set<string>();
+
   const [{ data: cities }, { data: schools }] = await Promise.all([
     supabase.from("cities").select("id, name"),
-    supabase.from("schools").select("id, name, city_id"),
+    supabase.from("schools").select("id, name, city_id, neighborhood"),
   ]);
   (cities ?? []).forEach((c) => cityCache.set(key(c.name), c.id));
-  (schools ?? []).forEach((s) => schoolCache.set(`${key(s.name)}|${s.city_id ?? ""}`, s.id));
+  (schools ?? []).forEach((s) => {
+    const k = `${key(s.name)}|${s.city_id ?? ""}`;
+    schoolCache.set(k, s.id);
+    if (!norm(s.neighborhood)) missingNeighborhood.add(k);
+  });
 
   async function resolveCity(name: string) {
     const k = key(name);
@@ -265,13 +298,22 @@ export async function runImport(rows: SalesRow[], userId: string | null): Promis
     return data.id;
   }
 
-  async function resolveSchool(name: string, cityId: string) {
+  async function resolveSchool(name: string, cityId: string, neighborhood: string | null) {
     const k = `${key(name)}|${cityId}`;
+    const value = norm(neighborhood) || null;
     const cached = schoolCache.get(k);
-    if (cached) return cached;
+    if (cached) {
+      // Só completa o bairro quando o cadastro está vazio; divergências não são sobrescritas.
+      if (value && missingNeighborhood.has(k)) {
+        missingNeighborhood.delete(k);
+        const { error } = await supabase.from("schools").update({ neighborhood: value }).eq("id", cached);
+        if (error) throw error;
+      }
+      return cached;
+    }
     const { data, error } = await supabase
       .from("schools")
-      .insert({ name: name || "Sem escola", city_id: cityId })
+      .insert({ name: name || "Sem escola", city_id: cityId, neighborhood: value })
       .select("id")
       .single();
     if (error) throw error;
@@ -285,7 +327,7 @@ export async function runImport(rows: SalesRow[], userId: string | null): Promis
     if (cached) return cached;
 
     const cityId = await resolveCity(row.cityName);
-    const schoolId = await resolveSchool(row.schoolName, cityId);
+    const schoolId = await resolveSchool(row.schoolName, cityId, row.district);
 
     const { data: found, error: findError } = await supabase
       .from("activities")

@@ -69,7 +69,7 @@ function DashboardPage() {
     queryFn: async () => {
       const { data: activities } = await supabase
         .from("activities")
-        .select("*, cities(name), schools(name)")
+        .select("*, cities(name), schools(name, neighborhood)")
         .gte("activity_date", start)
         .lte("activity_date", end)
         .order("activity_date");
@@ -110,7 +110,7 @@ function DashboardPage() {
     queryFn: async () => {
       const { data: rows } = await supabase
         .from("activities")
-        .select("*, cities(name), schools(name)")
+        .select("*, cities(name), schools(name, neighborhood)")
         .gte("activity_date", prevStart)
         .lte("activity_date", prevEnd)
         .order("activity_date");
@@ -379,7 +379,7 @@ type ActivityRowData = {
   activity_date: string;
   start_time: string | null;
   cities?: { name: string } | null;
-  schools?: { name: string } | null;
+  schools?: { name: string; neighborhood?: string | null } | null;
 };
 
 export function ActivityRow({
@@ -404,6 +404,7 @@ export function ActivityRow({
           {showDate && `${formatDateBR(activity.activity_date)} · `}
           {activity.start_time?.slice(0, 5) ?? "--:--"} ·{" "}
           {activity.schools?.name ?? activity.cities?.name ?? "Sem local"}
+          {activity.schools?.neighborhood ? ` · ${activity.schools.neighborhood}` : ""}
         </p>
       </div>
       <Badge variant="outline" className={tone.chip}>

@@ -50,7 +50,7 @@ function ActivitiesPage() {
     queryFn: async () => {
       let q = supabase
         .from("activities")
-        .select("*, cities(name), schools(name)")
+        .select("*, cities(name), schools(name, neighborhood)")
         .order("activity_date", { ascending: false })
         .limit(200);
       if (type !== "todos") q = q.eq("type", type as never);

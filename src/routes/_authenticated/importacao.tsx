@@ -169,6 +169,24 @@ function ImportacaoPage() {
               <Stat label="Marcadas para revisão" value={preview.reviewCount} />
             </div>
 
+            {preview.neighborhoodWarnings.length > 0 && (
+              <div className="space-y-2 rounded-lg border border-warning/40 bg-warning/10 p-3">
+                <h2 className="flex items-center gap-2 text-sm font-semibold">
+                  <AlertTriangle className="size-4 text-warning" />
+                  Divergências de bairro/povoado ({preview.neighborhoodWarnings.length})
+                </h2>
+                <ul className="space-y-1 text-xs text-muted-foreground">
+                  {preview.neighborhoodWarnings.map((w) => (
+                    <li key={`${w.schoolName}-${w.sheet}`}>
+                      Escola {w.schoolName}: bairro na planilha diverge do cadastrado (cadastrado:{" "}
+                      {w.current}, planilha: {w.sheet}) — o cadastro não será alterado.
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+
             {detailed.length > 0 && (
               <Accordion type="single" collapsible>
                 <AccordionItem value="detalhes">
