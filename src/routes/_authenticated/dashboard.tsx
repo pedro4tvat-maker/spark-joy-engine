@@ -2,17 +2,21 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle,
   BarChart3,
   CalendarClock,
   CheckCircle2,
   CreditCard,
+  PackageCheck,
   Plus,
   Receipt,
+  School,
+  Stethoscope,
   TrendingDown,
   TrendingUp,
+  Truck,
   Wallet,
 } from "lucide-react";
+
 import {
   Area,
   AreaChart,
@@ -112,17 +116,45 @@ type SaleRow = {
   } | null;
 };
 
+const MONTH_NAMES = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
+
 function DashboardPage() {
+  const now = useMemo(() => new Date(), []);
   const [period, setPeriod] = useState<PeriodKey>("mes");
-  const { start, end } = useMemo(() => periodRange(period), [period]);
-  const { start: monthStart, end: monthEnd } = useMemo(() => monthRange(), []);
-  const { start: prevStart, end: prevEnd } = useMemo(() => {
-    const now = new Date();
-    return monthRange(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-  }, []);
+  const [month, setMonth] = useState(now.getMonth());
+  const [year, setYear] = useState(now.getFullYear());
+
+  /** Base do período: mês/ano escolhidos quando o modo é "Mês". */
+  const { start, end } = useMemo(() => {
+    if (period === "mes") return monthRange(new Date(year, month, 1));
+    return periodRange(period);
+  }, [period, month, year]);
+
+  const { start: monthStart, end: monthEnd } = useMemo(
+    () => monthRange(new Date(year, month, 1)),
+    [year, month],
+  );
+  const { start: prevStart, end: prevEnd } = useMemo(
+    () => monthRange(new Date(year, month - 1, 1)),
+    [year, month],
+  );
   const today = iso(new Date());
   const { data: profile } = useSessionProfile();
   const isManager = isManagerRole(profile);
+
 
   /* Atividades do período selecionado (KPIs operacionais). */
   const { data, isLoading } = useQuery({
@@ -251,8 +283,7 @@ function DashboardPage() {
   });
 
   const trend = useMemo(() => {
-    const now = new Date();
-    const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const days = new Date(year, month + 1, 0).getDate();
     const totals = new Map<string, number>();
     for (const s of monthSales ?? []) {
       const d = s.activities?.activity_date;
@@ -260,42 +291,60 @@ function DashboardPage() {
       totals.set(d, (totals.get(d) ?? 0) + num(s.total_amount));
     }
     return Array.from({ length: days }, (_, i) => {
-      const date = iso(new Date(now.getFullYear(), now.getMonth(), i + 1));
+      const date = iso(new Date(year, month, i + 1));
       return { date, day: String(i + 1), value: totals.get(date) ?? 0 };
     });
-  }, [monthSales]);
+  }, [monthSales, year, month]);
+
 
   const trendHasData = trend.some((d) => d.value > 0);
 
-  /* ---- Vendas que precisam de revisão (sem filtro de período) ---- */
-  const { data: reviewSales } = useQuery({
-    queryKey: ["dashboard-sales-review"],
-    enabled: isManager,
+  /* ---- Indicadores operacionais do período ---- */
+  const ops = useMemo(() => {
+    const acuidadeDone = activities.filter(
+      (a) => a.type === "acuidade" && a.status === "concluida",
+    );
+    const schoolsAcuidade = new Set(
+      acuidadeDone.map((a) => a.school_id ?? a.id).filter(Boolean) as string[],
+    );
+    const atendimentos = activities.filter((a) => a.type === "atendimento");
+    const entregas = activities.filter((a) => a.type === "entrega");
+    const students = activities.reduce((s, a) => s + Number(a.students_count ?? 0), 0);
+    return {
+      schoolsAcuidade: schoolsAcuidade.size,
+      acuidadeTotal: activities.filter((a) => a.type === "acuidade").length,
+      atendimentos: atendimentos.length,
+      atendimentosDone: atendimentos.filter((a) => a.status === "concluida").length,
+      entregas: entregas.length,
+      entregasDone: entregas.filter((a) => a.status === "concluida").length,
+      students,
+    };
+  }, [activities]);
+
+  /* ---- Próxima entrega de óculos (independe do filtro) ---- */
+  const { data: nextDelivery } = useQuery({
+    queryKey: ["dashboard-next-delivery", today],
     queryFn: async () => {
-      const { data: rows, error } = await supabase
-        .from("sales")
-        .select(
-          "id, os_number, student_name, review_reason, activity_id, activities(schools(name, neighborhood), cities(name))",
-        )
-        .eq("needs_review", true)
-        .order("imported_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return (rows ?? []) as unknown as {
+      const { data: rows } = await supabase
+        .from("activities")
+        .select("id, number, title, activity_date, start_time, cities(name), schools(name, neighborhood)")
+        .eq("type", "entrega")
+        .neq("status", "cancelada")
+        .gte("activity_date", today)
+        .order("activity_date")
+        .limit(1);
+      return (rows?.[0] ?? null) as null | {
         id: string;
-        os_number: string;
-        student_name: string | null;
-        review_reason: string | null;
-        activity_id: string;
-        activities: {
-          schools: { name: string; neighborhood: string | null } | null;
-          cities: { name: string } | null;
-        } | null;
-      }[];
+        number: number;
+        title: string | null;
+        activity_date: string;
+        start_time: string | null;
+        cities: { name: string } | null;
+        schools: { name: string; neighborhood: string | null } | null;
+      };
     },
   });
 
-  const reviews = reviewSales ?? [];
 
   /* ---- Mês anterior (comparativo dos cards operacionais) ---- */
   const { data: prevData } = useQuery({
@@ -330,18 +379,27 @@ function DashboardPage() {
       : undefined;
 
   const periodLabel =
-    period === "hoje" ? "hoje" : period === "semana" ? "nesta semana" : "no mês";
+    period === "hoje"
+      ? "hoje"
+      : period === "semana"
+        ? "nesta semana"
+        : `em ${MONTH_NAMES[month]} de ${year}`;
+
+  const years = useMemo(() => {
+    const base = now.getFullYear();
+    return [base - 2, base - 1, base, base + 1];
+  }, [now]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-4">
-          <div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="mr-1">
             <h1 className="font-display text-2xl font-semibold tracking-tight">Dashboard</h1>
             <p className="text-sm text-muted-foreground">Visão operacional {periodLabel}</p>
           </div>
           <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
-            <SelectTrigger className="h-11 w-36" aria-label="Período">
+            <SelectTrigger className="h-11 w-32" aria-label="Período">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -350,6 +408,34 @@ function DashboardPage() {
               <SelectItem value="mes">Mês</SelectItem>
             </SelectContent>
           </Select>
+          {period === "mes" && (
+            <>
+              <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
+                <SelectTrigger className="h-11 w-36" aria-label="Mês">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTH_NAMES.map((m, i) => (
+                    <SelectItem key={m} value={String(i)}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+                <SelectTrigger className="h-11 w-28" aria-label="Ano">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
         </div>
         <ActivityFormDialog
           trigger={
@@ -360,40 +446,62 @@ function DashboardPage() {
         />
       </div>
 
-      {isManager && reviews.length > 0 && (
-        <Card className="border-ev-urgente/40 bg-ev-urgente-soft">
-          <CardHeader className="flex-row items-center gap-2">
-            <AlertTriangle className="size-4 text-ev-urgente" aria-hidden />
-            <CardTitle className="text-base text-ev-urgente">
-              Precisa de atenção · {reviews.length} venda(s) para revisar
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-2 md:grid-cols-2">
-            {reviews.map((s) => (
-              <Link
-                key={s.id}
-                to="/atividades/$activityId"
-                params={{ activityId: s.activity_id }}
-                className="block rounded-lg border border-ev-urgente/30 bg-card px-3 py-2 transition-colors hover:bg-muted/60"
-              >
-                <p className="truncate text-sm font-medium">
-                  OS {s.os_number}
-                  {s.student_name ? ` · ${s.student_name}` : ""}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {s.activities?.schools?.name ?? s.activities?.cities?.name ?? "Sem local"}
-                  {s.activities?.schools?.neighborhood
-                    ? ` · ${s.activities.schools.neighborhood}`
-                    : ""}
-                </p>
-                <p className="mt-0.5 truncate text-xs font-medium text-ev-urgente">
-                  {s.review_reason ?? "Conferência pendente"}
-                </p>
-              </Link>
-            ))}
+      {/* Operacional: acuidade, atendimentos, entregas e próxima entrega */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat
+          label="Escolas com acuidade"
+          value={String(ops.schoolsAcuidade)}
+          icon={School}
+          hint={`${ops.acuidadeTotal} atividade(s) de acuidade`}
+          loading={isLoading}
+        />
+        <Stat
+          label="Atendimentos"
+          value={String(ops.atendimentos)}
+          icon={Stethoscope}
+          hint={`${ops.atendimentosDone} concluídos`}
+          loading={isLoading}
+        />
+        <Stat
+          label="Entregas"
+          value={String(ops.entregas)}
+          icon={PackageCheck}
+          hint={`${ops.entregasDone} concluídas`}
+          loading={isLoading}
+        />
+        <Card>
+          <CardContent className="flex items-start gap-4 p-5">
+            <span className="flex size-11 items-center justify-center rounded-xl bg-ev-entrega-soft text-ev-entrega">
+              <Truck className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Próxima entrega de óculos
+              </p>
+              {nextDelivery ? (
+                <Link
+                  to="/atividades/$activityId"
+                  params={{ activityId: nextDelivery.id }}
+                  className="block"
+                >
+                  <p className="font-display text-lg font-semibold">
+                    {formatDateBR(nextDelivery.activity_date)}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {nextDelivery.schools?.name ?? nextDelivery.cities?.name ?? "Sem local"}
+                    {nextDelivery.schools?.neighborhood
+                      ? ` · ${nextDelivery.schools.neighborhood}`
+                      : ""}
+                  </p>
+                </Link>
+              ) : (
+                <p className="mt-1 text-sm text-muted-foreground">Nenhuma entrega agendada.</p>
+              )}
+            </div>
           </CardContent>
         </Card>
-      )}
+      </div>
+
 
       {isManager ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -470,7 +578,10 @@ function DashboardPage() {
       {isManager && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Faturamento por dia · mês corrente</CardTitle>
+            <CardTitle className="text-base">
+              Faturamento por dia · {MONTH_NAMES[month]} de {year}
+            </CardTitle>
+
           </CardHeader>
           <CardContent className="h-72">
             {!trendHasData ? (
