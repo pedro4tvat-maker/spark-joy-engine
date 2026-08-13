@@ -11,12 +11,13 @@ import {
   LogOut,
   Menu,
   Search,
+  Upload,
   Users,
   X,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
-import { isAdminRole, useSessionProfile } from "@/hooks/use-session-profile";
+import { isAdminRole, isManagerRole, useSessionProfile } from "@/hooks/use-session-profile";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -39,11 +40,12 @@ import { APP_ROLES, labelOf } from "@/lib/psvne";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false },
-  { to: "/calendario", label: "Calendário", icon: CalendarDays, adminOnly: false },
-  { to: "/atividades", label: "Atividades", icon: ListChecks, adminOnly: false },
-  { to: "/cadastros", label: "Cadastros", icon: Database, adminOnly: false },
-  { to: "/usuarios", label: "Usuários", icon: Users, adminOnly: true },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false, managerOnly: false },
+  { to: "/calendario", label: "Calendário", icon: CalendarDays, adminOnly: false, managerOnly: false },
+  { to: "/atividades", label: "Atividades", icon: ListChecks, adminOnly: false, managerOnly: false },
+  { to: "/cadastros", label: "Cadastros", icon: Database, adminOnly: false, managerOnly: false },
+  { to: "/importacao", label: "Importar vendas", icon: Upload, adminOnly: false, managerOnly: true },
+  { to: "/usuarios", label: "Usuários", icon: Users, adminOnly: true, managerOnly: false },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -91,7 +93,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const nav = (
     <nav className="flex flex-col gap-1 p-3">
-      {NAV.filter((item) => !item.adminOnly || isAdminRole(profile)).map((item) => {
+      {NAV.filter(
+        (item) =>
+          (!item.adminOnly || isAdminRole(profile)) && (!item.managerOnly || isManagerRole(profile)),
+      ).map((item) => {
         const active = pathname.startsWith(item.to);
         return (
           <Link

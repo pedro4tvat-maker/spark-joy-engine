@@ -272,9 +272,11 @@ export type Database = {
           activity_id: string
           amount_card: number
           amount_cash: number
+          amount_credit: number
           amount_pix: number
           amount_received: number
           amount_sold: number
+          courtesy_count: number
           created_at: string
           sales_count: number
           service_count: number
@@ -284,9 +286,11 @@ export type Database = {
           activity_id: string
           amount_card?: number
           amount_cash?: number
+          amount_credit?: number
           amount_pix?: number
           amount_received?: number
           amount_sold?: number
+          courtesy_count?: number
           created_at?: string
           sales_count?: number
           service_count?: number
@@ -296,9 +300,11 @@ export type Database = {
           activity_id?: string
           amount_card?: number
           amount_cash?: number
+          amount_credit?: number
           amount_pix?: number
           amount_received?: number
           amount_sold?: number
+          courtesy_count?: number
           created_at?: string
           sales_count?: number
           service_count?: number
@@ -882,6 +888,74 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      sales: {
+        Row: {
+          activity_id: string
+          card_amount: number
+          cash_amount: number
+          credit_amount: number
+          id: string
+          imported_at: string
+          imported_by: string | null
+          installments_label: string | null
+          is_courtesy: boolean
+          mother_os: string | null
+          needs_review: boolean
+          notes: string | null
+          os_number: string
+          pix_amount: number
+          review_reason: string | null
+          student_name: string | null
+          total_amount: number
+        }
+        Insert: {
+          activity_id: string
+          card_amount?: number
+          cash_amount?: number
+          credit_amount?: number
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          installments_label?: string | null
+          is_courtesy?: boolean
+          mother_os?: string | null
+          needs_review?: boolean
+          notes?: string | null
+          os_number: string
+          pix_amount?: number
+          review_reason?: string | null
+          student_name?: string | null
+          total_amount?: number
+        }
+        Update: {
+          activity_id?: string
+          card_amount?: number
+          cash_amount?: number
+          credit_amount?: number
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          installments_label?: string | null
+          is_courtesy?: boolean
+          mother_os?: string | null
+          needs_review?: boolean
+          notes?: string | null
+          os_number?: string
+          pix_amount?: number
+          review_reason?: string | null
+          student_name?: string | null
+          total_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       schools: {
         Row: {
