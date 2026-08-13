@@ -295,35 +295,52 @@ function DashboardPage() {
 
   const trendHasData = trend.some((d) => d.value > 0);
 
-  /* ---- Vendas que precisam de revisão (sem filtro de período) ---- */
-  const { data: reviewSales } = useQuery({
-    queryKey: ["dashboard-sales-review"],
-    enabled: isManager,
+  /* ---- Indicadores operacionais do período ---- */
+  const ops = useMemo(() => {
+    const acuidadeDone = activities.filter(
+      (a) => a.type === "acuidade" && a.status === "concluida",
+    );
+    const schoolsAcuidade = new Set(
+      acuidadeDone.map((a) => a.school_id ?? a.id).filter(Boolean) as string[],
+    );
+    const atendimentos = activities.filter((a) => a.type === "atendimento");
+    const entregas = activities.filter((a) => a.type === "entrega");
+    const students = activities.reduce((s, a) => s + Number(a.students_count ?? 0), 0);
+    return {
+      schoolsAcuidade: schoolsAcuidade.size,
+      acuidadeTotal: activities.filter((a) => a.type === "acuidade").length,
+      atendimentos: atendimentos.length,
+      atendimentosDone: atendimentos.filter((a) => a.status === "concluida").length,
+      entregas: entregas.length,
+      entregasDone: entregas.filter((a) => a.status === "concluida").length,
+      students,
+    };
+  }, [activities]);
+
+  /* ---- Próxima entrega de óculos (independe do filtro) ---- */
+  const { data: nextDelivery } = useQuery({
+    queryKey: ["dashboard-next-delivery", today],
     queryFn: async () => {
-      const { data: rows, error } = await supabase
-        .from("sales")
-        .select(
-          "id, os_number, student_name, review_reason, activity_id, activities(schools(name, neighborhood), cities(name))",
-        )
-        .eq("needs_review", true)
-        .order("imported_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return (rows ?? []) as unknown as {
+      const { data: rows } = await supabase
+        .from("activities")
+        .select("id, number, title, activity_date, start_time, cities(name), schools(name, neighborhood)")
+        .eq("type", "entrega")
+        .neq("status", "cancelada")
+        .gte("activity_date", today)
+        .order("activity_date")
+        .limit(1);
+      return (rows?.[0] ?? null) as null | {
         id: string;
-        os_number: string;
-        student_name: string | null;
-        review_reason: string | null;
-        activity_id: string;
-        activities: {
-          schools: { name: string; neighborhood: string | null } | null;
-          cities: { name: string } | null;
-        } | null;
-      }[];
+        number: number;
+        title: string | null;
+        activity_date: string;
+        start_time: string | null;
+        cities: { name: string } | null;
+        schools: { name: string; neighborhood: string | null } | null;
+      };
     },
   });
 
-  const reviews = reviewSales ?? [];
 
   /* ---- Mês anterior (comparativo dos cards operacionais) ---- */
   const { data: prevData } = useQuery({
