@@ -54,7 +54,7 @@ type TableName =
 
 function RegistriesPage() {
   const { data: profile } = useSessionProfile();
-  const isManager = isManagerRole(profile?.roles);
+  const isManager = isManagerRole(profile);
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">

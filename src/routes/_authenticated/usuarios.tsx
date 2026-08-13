@@ -56,7 +56,7 @@ export const Route = createFileRoute("/_authenticated/usuarios")({
 
 function UsersPage() {
   const { data: profile } = useSessionProfile();
-  const admin = isAdminRole(profile?.roles);
+  const admin = isAdminRole(profile);
 
   if (!admin) {
     return (

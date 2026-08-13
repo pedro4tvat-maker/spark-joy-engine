@@ -62,7 +62,7 @@ function DashboardPage() {
   }, []);
   const today = new Date().toISOString().slice(0, 10);
   const { data: profile } = useSessionProfile();
-  const isManager = isManagerRole(profile?.roles);
+  const isManager = isManagerRole(profile);
 
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard", start, end],
