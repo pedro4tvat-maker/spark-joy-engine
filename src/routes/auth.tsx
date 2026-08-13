@@ -8,7 +8,7 @@ import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -34,7 +34,7 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
+  
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -51,22 +51,6 @@ function AuthPage() {
     navigate({ to: "/dashboard", replace: true });
   }
 
-  async function signUp(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: window.location.origin,
-        data: { full_name: fullName },
-      },
-    });
-    setLoading(false);
-    if (error) return toast.error("Não foi possível criar a conta", { description: error.message });
-    toast.success("Conta criada", { description: "Você já pode acessar o sistema." });
-    navigate({ to: "/dashboard", replace: true });
-  }
 
   async function signInGoogle() {
     setLoading(true);
