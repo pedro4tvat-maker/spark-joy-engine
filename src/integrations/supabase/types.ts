@@ -965,6 +965,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          neighborhood: string | null
           phone: string | null
           principal: string | null
           students_count: number | null
@@ -977,6 +978,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          neighborhood?: string | null
           phone?: string | null
           principal?: string | null
           students_count?: number | null
@@ -989,6 +991,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          neighborhood?: string | null
           phone?: string | null
           principal?: string | null
           students_count?: number | null
