@@ -11,12 +11,13 @@ import {
   LogOut,
   Menu,
   Search,
+  Upload,
   Users,
   X,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
-import { isAdminRole, useSessionProfile } from "@/hooks/use-session-profile";
+import { isAdminRole, isManagerRole, useSessionProfile } from "@/hooks/use-session-profile";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -92,7 +93,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const nav = (
     <nav className="flex flex-col gap-1 p-3">
-      {NAV.filter((item) => !item.adminOnly || isAdminRole(profile)).map((item) => {
+      {NAV.filter(
+        (item) =>
+          (!item.adminOnly || isAdminRole(profile)) && (!item.managerOnly || isManagerRole(profile)),
+      ).map((item) => {
         const active = pathname.startsWith(item.to);
         return (
           <Link
