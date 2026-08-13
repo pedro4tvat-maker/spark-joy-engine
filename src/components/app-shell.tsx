@@ -39,11 +39,12 @@ import { APP_ROLES, labelOf } from "@/lib/psvne";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false },
-  { to: "/calendario", label: "Calendário", icon: CalendarDays, adminOnly: false },
-  { to: "/atividades", label: "Atividades", icon: ListChecks, adminOnly: false },
-  { to: "/cadastros", label: "Cadastros", icon: Database, adminOnly: false },
-  { to: "/usuarios", label: "Usuários", icon: Users, adminOnly: true },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false, managerOnly: false },
+  { to: "/calendario", label: "Calendário", icon: CalendarDays, adminOnly: false, managerOnly: false },
+  { to: "/atividades", label: "Atividades", icon: ListChecks, adminOnly: false, managerOnly: false },
+  { to: "/cadastros", label: "Cadastros", icon: Database, adminOnly: false, managerOnly: false },
+  { to: "/importacao", label: "Importar vendas", icon: Upload, adminOnly: false, managerOnly: true },
+  { to: "/usuarios", label: "Usuários", icon: Users, adminOnly: true, managerOnly: false },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
