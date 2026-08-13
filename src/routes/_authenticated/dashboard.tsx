@@ -112,17 +112,45 @@ type SaleRow = {
   } | null;
 };
 
+const MONTH_NAMES = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
+
 function DashboardPage() {
+  const now = useMemo(() => new Date(), []);
   const [period, setPeriod] = useState<PeriodKey>("mes");
-  const { start, end } = useMemo(() => periodRange(period), [period]);
-  const { start: monthStart, end: monthEnd } = useMemo(() => monthRange(), []);
-  const { start: prevStart, end: prevEnd } = useMemo(() => {
-    const now = new Date();
-    return monthRange(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-  }, []);
+  const [month, setMonth] = useState(now.getMonth());
+  const [year, setYear] = useState(now.getFullYear());
+
+  /** Base do período: mês/ano escolhidos quando o modo é "Mês". */
+  const { start, end } = useMemo(() => {
+    if (period === "mes") return monthRange(new Date(year, month, 1));
+    return periodRange(period);
+  }, [period, month, year]);
+
+  const { start: monthStart, end: monthEnd } = useMemo(
+    () => monthRange(new Date(year, month, 1)),
+    [year, month],
+  );
+  const { start: prevStart, end: prevEnd } = useMemo(
+    () => monthRange(new Date(year, month - 1, 1)),
+    [year, month],
+  );
   const today = iso(new Date());
   const { data: profile } = useSessionProfile();
   const isManager = isManagerRole(profile);
+
 
   /* Atividades do período selecionado (KPIs operacionais). */
   const { data, isLoading } = useQuery({
