@@ -279,8 +279,7 @@ function DashboardPage() {
   });
 
   const trend = useMemo(() => {
-    const now = new Date();
-    const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const days = new Date(year, month + 1, 0).getDate();
     const totals = new Map<string, number>();
     for (const s of monthSales ?? []) {
       const d = s.activities?.activity_date;
@@ -288,10 +287,11 @@ function DashboardPage() {
       totals.set(d, (totals.get(d) ?? 0) + num(s.total_amount));
     }
     return Array.from({ length: days }, (_, i) => {
-      const date = iso(new Date(now.getFullYear(), now.getMonth(), i + 1));
+      const date = iso(new Date(year, month, i + 1));
       return { date, day: String(i + 1), value: totals.get(date) ?? 0 };
     });
-  }, [monthSales]);
+  }, [monthSales, year, month]);
+
 
   const trendHasData = trend.some((d) => d.value > 0);
 
