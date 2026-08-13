@@ -104,6 +104,56 @@ function DashboardPage() {
   const sold = (finance ?? []).reduce((s, f) => s + Number(f.amount_sold ?? 0), 0);
   const received = (finance ?? []).reduce((s, f) => s + Number(f.amount_received ?? 0), 0);
 
+  /* ---- Mês anterior (comparativo) ---- */
+  const { data: prevData } = useQuery({
+    queryKey: ["dashboard", prevStart, prevEnd],
+    queryFn: async () => {
+      const { data: rows } = await supabase
+        .from("activities")
+        .select("*, cities(name), schools(name)")
+        .gte("activity_date", prevStart)
+        .lte("activity_date", prevEnd)
+        .order("activity_date");
+      return rows ?? [];
+    },
+  });
+
+  const prevActivities = prevData ?? [];
+  const prevIds = prevActivities.map((a) => a.id);
+
+  const { data: prevFinance } = useQuery({
+    queryKey: ["dashboard-finance", prevStart, prevEnd, prevIds.length],
+    enabled: isManager && prevIds.length > 0,
+    queryFn: async () => {
+      const { data: rows } = await supabase
+        .from("activity_finance")
+        .select("amount_sold, amount_received")
+        .in("activity_id", prevIds);
+      return rows ?? [];
+    },
+  });
+
+  const prevLoaded = prevData !== undefined;
+  const prevLate = prevActivities.filter((a) => a.status === "atrasada").length;
+  const prevDone = prevActivities.filter((a) => a.status === "concluida").length;
+  const prevPending = prevActivities.filter(
+    (a) => a.status === "agendada" || a.status === "em_andamento",
+  ).length;
+  const prevSold = (prevFinance ?? []).reduce((s, f) => s + Number(f.amount_sold ?? 0), 0);
+
+  /** Retorna a variação ou undefined quando não há base de comparação. */
+  const delta = (current: number, previous: number | undefined) =>
+    prevLoaded && previous !== undefined ? current - previous : undefined;
+
+  const rate = activities.length ? (done.length / activities.length) * 100 : undefined;
+  const prevRate = prevActivities.length ? (prevDone / prevActivities.length) * 100 : undefined;
+  const rateDelta =
+    prevLoaded && rate !== undefined && prevRate !== undefined
+      ? Math.round(rate - prevRate)
+      : undefined;
+
+
+
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
