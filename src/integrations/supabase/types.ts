@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_types: {
+        Row: {
+          active: boolean
+          built_in: boolean
+          created_at: string
+          description: string | null
+          id: string
+          is_admin: boolean
+          is_manager: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          built_in?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_admin?: boolean
+          is_manager?: boolean
+          key: string
+          label: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          built_in?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_admin?: boolean
+          is_manager?: boolean
+          key?: string
+          label?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       activities: {
         Row: {
           activity_date: string
@@ -820,7 +862,7 @@ export type Database = {
           created_at: string
           id: string
           permission: string
-          role: Database["public"]["Enums"]["app_role"]
+          role: string
           updated_at: string
         }
         Insert: {
@@ -828,7 +870,7 @@ export type Database = {
           created_at?: string
           id?: string
           permission: string
-          role: Database["public"]["Enums"]["app_role"]
+          role: string
           updated_at?: string
         }
         Update: {
@@ -836,7 +878,7 @@ export type Database = {
           created_at?: string
           id?: string
           permission?: string
-          role?: Database["public"]["Enums"]["app_role"]
+          role?: string
           updated_at?: string
         }
         Relationships: []
@@ -919,19 +961,19 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          role: Database["public"]["Enums"]["app_role"]
+          role: string
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
-          role: Database["public"]["Enums"]["app_role"]
+          role: string
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
-          role?: Database["public"]["Enums"]["app_role"]
+          role?: string
           user_id?: string
         }
         Relationships: []

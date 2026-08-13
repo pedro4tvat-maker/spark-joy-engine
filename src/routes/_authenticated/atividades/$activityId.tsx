@@ -80,7 +80,7 @@ function ActivityDetailPage() {
   const { activityId } = useParams({ from: "/_authenticated/atividades/$activityId" });
   const queryClient = useQueryClient();
   const { data: profile } = useSessionProfile();
-  const isManager = isManagerRole(profile?.roles);
+  const isManager = isManagerRole(profile);
 
 
   const { data: activity, isLoading } = useQuery({

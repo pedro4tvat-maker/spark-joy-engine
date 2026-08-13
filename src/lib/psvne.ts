@@ -3,7 +3,7 @@ import type { Database } from "@/integrations/supabase/types";
 export type ActivityType = Database["public"]["Enums"]["activity_type"];
 export type ActivityStatus = Database["public"]["Enums"]["activity_status"];
 export type ActivityPriority = Database["public"]["Enums"]["activity_priority"];
-export type AppRole = Database["public"]["Enums"]["app_role"];
+export type AppRole = string;
 
 export const ACTIVITY_TYPES: { value: ActivityType; label: string; tone: string }[] = [
   { value: "acuidade", label: "Acuidade", tone: "acuidade" },

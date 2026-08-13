@@ -91,7 +91,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const nav = (
     <nav className="flex flex-col gap-1 p-3">
-      {NAV.filter((item) => !item.adminOnly || isAdminRole(profile?.roles)).map((item) => {
+      {NAV.filter((item) => !item.adminOnly || isAdminRole(profile)).map((item) => {
         const active = pathname.startsWith(item.to);
         return (
           <Link

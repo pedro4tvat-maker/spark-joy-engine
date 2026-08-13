@@ -8,6 +8,8 @@ export type SessionProfile = {
   fullName: string;
   avatarUrl: string | null;
   roles: AppRole[];
+  isManager: boolean;
+  isAdmin: boolean;
 };
 
 export function useSessionProfile() {
@@ -18,27 +20,35 @@ export function useSessionProfile() {
       const user = userData.user;
       if (!user) return null;
 
-      const [{ data: profile }, { data: roles }] = await Promise.all([
+      const [{ data: profile }, { data: roles }, { data: accessTypes }] = await Promise.all([
         supabase.from("profiles").select("full_name, avatar_url, email").eq("id", user.id).maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", user.id),
+        supabase.from("access_types").select("key, is_manager, is_admin, active"),
       ]);
+
+      const userRoles = (roles ?? []).map((r) => r.role as AppRole);
+      const mine = (accessTypes ?? []).filter((t) => t.active && userRoles.includes(t.key));
 
       return {
         userId: user.id,
         email: profile?.email ?? user.email ?? null,
         fullName: profile?.full_name || (user.email ?? "Usuário"),
         avatarUrl: profile?.avatar_url ?? null,
-        roles: (roles ?? []).map((r) => r.role as AppRole),
+        roles: userRoles,
+        isManager: mine.some((t) => t.is_manager || t.is_admin),
+        isAdmin: mine.some((t) => t.is_admin),
       };
     },
     staleTime: 30_000,
   });
 }
 
-export function isManagerRole(roles: AppRole[] | undefined) {
-  return !!roles?.some((r) => r === "administrador" || r === "coordenador" || r === "financeiro");
+/** Gestão: enxerga valores financeiros e itens de OS. */
+export function isManagerRole(profile: SessionProfile | null | undefined) {
+  return Boolean(profile?.isManager);
 }
 
-export function isAdminRole(roles: AppRole[] | undefined) {
-  return !!roles?.some((r) => r === "administrador" || r === "coordenador");
+/** Administração: gerencia usuários, permissões e tipos de acesso. */
+export function isAdminRole(profile: SessionProfile | null | undefined) {
+  return Boolean(profile?.isAdmin);
 }

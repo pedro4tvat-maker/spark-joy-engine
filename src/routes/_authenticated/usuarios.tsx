@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { UserPlus } from "lucide-react";
+import { Pencil, Trash2, UserPlus, X } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -20,8 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { APP_ROLES, JOB_ROLES, type AppRole } from "@/lib/psvne";
+import { JOB_ROLES, type AppRole } from "@/lib/psvne";
 import { useListOptions } from "@/hooks/use-list-options";
+import { useAccessTypes, type AccessType } from "@/hooks/use-access-types";
 import { PERMISSIONS, toPermissionMap, useRolePermissions } from "@/lib/permissions";
 import { isAdminRole, useSessionProfile } from "@/hooks/use-session-profile";
 import {
@@ -30,6 +31,7 @@ import {
   setAppUserActive,
   setAppUserRole,
 } from "@/lib/users.functions";
+
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   component: UsersPage,
@@ -54,7 +56,7 @@ export const Route = createFileRoute("/_authenticated/usuarios")({
 
 function UsersPage() {
   const { data: profile } = useSessionProfile();
-  const admin = isAdminRole(profile?.roles);
+  const admin = isAdminRole(profile);
 
   if (!admin) {
     return (
@@ -77,12 +79,16 @@ function UsersPage() {
         <TabsList>
           <TabsTrigger value="contas">Contas</TabsTrigger>
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
+          <TabsTrigger value="tipos">Tipos de acesso</TabsTrigger>
         </TabsList>
         <TabsContent value="contas" className="mt-4 space-y-5">
           <AccountsTab />
         </TabsContent>
         <TabsContent value="permissoes" className="mt-4">
           <PermissionsTab />
+        </TabsContent>
+        <TabsContent value="tipos" className="mt-4">
+          <AccessTypesTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -99,6 +105,7 @@ function AccountsTab() {
   const { options: jobRoles } = useListOptions("job_role", JOB_ROLES as unknown as string[]);
   const { data: permissionRows } = useRolePermissions();
   const permissionMap = toPermissionMap(permissionRows);
+  const { options: accessOptions } = useAccessTypes();
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["app-users"],
@@ -205,7 +212,7 @@ function AccountsTab() {
               >
                 <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {APP_ROLES.map((r) => (
+                  {accessOptions.map((r) => (
                     <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -269,7 +276,7 @@ function AccountsTab() {
                   <SelectValue placeholder="Sem papel" />
                 </SelectTrigger>
                 <SelectContent>
-                  {APP_ROLES.map((r) => (
+                  {accessOptions.map((r) => (
                     <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -304,6 +311,7 @@ function AccountsTab() {
 function PermissionsTab() {
   const queryClient = useQueryClient();
   const { data: rows, isLoading } = useRolePermissions();
+  const { options: accessOptions } = useAccessTypes();
   const [role, setRole] = useState<AppRole>("vendedor");
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -331,7 +339,7 @@ function PermissionsTab() {
         <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
           <SelectTrigger className="h-11 w-full sm:w-64"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {APP_ROLES.map((r) => (
+            {accessOptions.map((r) => (
               <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
             ))}
           </SelectContent>
@@ -357,5 +365,247 @@ function PermissionsTab() {
         </p>
       </CardContent>
     </Card>
+  );
+}
+
+function slugify(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+const EMPTY_TYPE = {
+  key: "",
+  label: "",
+  description: "",
+  isManager: false,
+  isAdmin: false,
+  active: true,
+};
+
+/** CRUD dos tipos de acesso (papéis) do sistema. */
+function AccessTypesTab() {
+  const queryClient = useQueryClient();
+  const { accessTypes, isLoading } = useAccessTypes(true);
+  const [editing, setEditing] = useState<AccessType | null>(null);
+  const [form, setForm] = useState({ ...EMPTY_TYPE });
+  const [saving, setSaving] = useState(false);
+
+  function refresh() {
+    queryClient.invalidateQueries({ queryKey: ["access-types"] });
+  }
+
+  function reset() {
+    setEditing(null);
+    setForm({ ...EMPTY_TYPE });
+  }
+
+  function startEdit(type: AccessType) {
+    setEditing(type);
+    setForm({
+      key: type.key,
+      label: type.label,
+      description: type.description ?? "",
+      isManager: type.isManager,
+      isAdmin: type.isAdmin,
+      active: type.active,
+    });
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const key = slugify(form.key || form.label);
+    if (!key) {
+      toast.error("Informe o nome do tipo de acesso");
+      return;
+    }
+    setSaving(true);
+    const payload = {
+      key,
+      label: form.label.trim(),
+      description: form.description.trim() || null,
+      is_manager: form.isManager || form.isAdmin,
+      is_admin: form.isAdmin,
+      active: form.active,
+    };
+    const { error } = editing
+      ? await supabase.from("access_types").update(payload).eq("id", editing.id)
+      : await supabase
+          .from("access_types")
+          .insert({ ...payload, position: accessTypes.length + 1 });
+    setSaving(false);
+    if (error) {
+      toast.error("Não foi possível salvar", { description: error.message });
+      return;
+    }
+    toast.success(editing ? "Tipo de acesso atualizado" : "Tipo de acesso criado");
+    reset();
+    refresh();
+    queryClient.invalidateQueries({ queryKey: ["role-permissions"] });
+  }
+
+  async function remove(type: AccessType) {
+    if (type.builtIn) {
+      toast.error("Tipo padrão do sistema", {
+        description: "Você pode renomear ou inativar, mas não excluir.",
+      });
+      return;
+    }
+    const { count } = await supabase
+      .from("user_roles")
+      .select("id", { count: "exact", head: true })
+      .eq("role", type.key);
+    if (count && count > 0) {
+      toast.error("Em uso por usuários", {
+        description: "Troque o tipo de acesso dessas contas antes de excluir.",
+      });
+      return;
+    }
+    const { error } = await supabase.from("access_types").delete().eq("id", type.id);
+    if (error) {
+      toast.error("Não foi possível excluir", { description: error.message });
+      return;
+    }
+    await supabase.from("role_permissions").delete().eq("role", type.key);
+    toast.success("Tipo de acesso excluído");
+    if (editing?.id === type.id) reset();
+    refresh();
+  }
+
+  return (
+    <div className="space-y-5">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            {editing ? `Editar "${editing.label}"` : "Novo tipo de acesso"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="typeLabel">Nome</Label>
+              <Input
+                id="typeLabel"
+                className="h-11"
+                required
+                value={form.label}
+                onChange={(e) => setForm({ ...form, label: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="typeKey">Identificador</Label>
+              <Input
+                id="typeKey"
+                className="h-11"
+                disabled={Boolean(editing?.builtIn)}
+                placeholder={slugify(form.label) || "ex: supervisor"}
+                value={form.key}
+                onChange={(e) => setForm({ ...form, key: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">
+                Deixe em branco para gerar a partir do nome.
+              </p>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="typeDescription">Descrição</Label>
+              <Input
+                id="typeDescription"
+                className="h-11"
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border px-3 py-3">
+              <div>
+                <p className="text-sm font-medium">Acesso de gestão</p>
+                <p className="text-xs text-muted-foreground">Vê valores e itens de OS</p>
+              </div>
+              <Switch
+                checked={form.isManager || form.isAdmin}
+                disabled={form.isAdmin}
+                onCheckedChange={(v) => setForm({ ...form, isManager: v })}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border px-3 py-3">
+              <div>
+                <p className="text-sm font-medium">Administra usuários</p>
+                <p className="text-xs text-muted-foreground">Cria contas e permissões</p>
+              </div>
+              <Switch
+                checked={form.isAdmin}
+                onCheckedChange={(v) =>
+                  setForm({ ...form, isAdmin: v, isManager: v ? true : form.isManager })
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border px-3 py-3 sm:col-span-2">
+              <div>
+                <p className="text-sm font-medium">Ativo</p>
+                <p className="text-xs text-muted-foreground">
+                  Tipos inativos não aparecem ao criar contas
+                </p>
+              </div>
+              <Switch
+                checked={form.active}
+                onCheckedChange={(v) => setForm({ ...form, active: v })}
+              />
+            </div>
+            <div className="flex gap-2 sm:col-span-2">
+              <Button type="submit" className="h-11" disabled={saving}>
+                {saving ? "Salvando…" : editing ? "Salvar" : "Criar tipo de acesso"}
+              </Button>
+              {editing && (
+                <Button type="button" variant="ghost" className="h-11" onClick={reset}>
+                  <X className="mr-2 size-4" />
+                  Cancelar
+                </Button>
+              )}
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Tipos cadastrados</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {isLoading && <p className="text-sm text-muted-foreground">Carregando…</p>}
+          {accessTypes.map((t) => (
+            <div key={t.id} className="flex flex-wrap items-center gap-3 rounded-lg border px-3 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{t.label}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {t.key}
+                  {t.description ? ` · ${t.description}` : ""}
+                </p>
+              </div>
+              {t.isAdmin && <Badge variant="secondary">administra usuários</Badge>}
+              {t.isManager && !t.isAdmin && <Badge variant="secondary">gestão</Badge>}
+              {!t.active && <Badge variant="outline">inativo</Badge>}
+              <Button variant="ghost" size="icon" onClick={() => startEdit(t)}>
+                <Pencil className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={t.builtIn}
+                onClick={() => remove(t)}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
+          ))}
+          {!isLoading && accessTypes.length === 0 && (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Nenhum tipo de acesso.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
