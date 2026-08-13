@@ -12,7 +12,7 @@ export const listAppUsers = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     await assertAdmin(context as any);
     const [{ data: profiles }, { data: roles }] = await Promise.all([
-      context.supabase.from("profiles").select("id, full_name, email, active, created_at").order("full_name"),
+      context.supabase.from("profiles").select("id, full_name, email, job_title, active, created_at").order("full_name"),
       context.supabase.from("user_roles").select("user_id, role"),
     ]);
     const roleMap = new Map<string, string[]>();
@@ -23,6 +23,7 @@ export const listAppUsers = createServerFn({ method: "GET" })
       id: p.id as string,
       fullName: (p.full_name as string) ?? "",
       email: (p.email as string | null) ?? null,
+      jobTitle: (p.job_title as string | null) ?? null,
       active: Boolean(p.active),
       roles: roleMap.get(p.id) ?? [],
     }));
@@ -30,7 +31,7 @@ export const listAppUsers = createServerFn({ method: "GET" })
 
 export const createAppUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { email: string; password: string; fullName: string; role: AppRole }) => {
+  .inputValidator((input: { email: string; password: string; fullName: string; role: AppRole; jobTitle?: string }) => {
     if (!input.email?.includes("@")) throw new Error("E-mail inválido");
     if (!input.password || input.password.length < 6) throw new Error("Senha deve ter ao menos 6 caracteres");
     if (!input.fullName?.trim()) throw new Error("Informe o nome");
@@ -49,7 +50,10 @@ export const createAppUser = createServerFn({ method: "POST" })
     if (error || !created.user) throw new Error(error?.message ?? "Falha ao criar usuário");
 
     const userId = created.user.id;
-    await supabaseAdmin.from("profiles").update({ full_name: data.fullName, email: data.email }).eq("id", userId);
+    await supabaseAdmin
+      .from("profiles")
+      .update({ full_name: data.fullName, email: data.email, job_title: data.jobTitle?.trim() || null })
+      .eq("id", userId);
     await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
     const { error: roleError } = await supabaseAdmin
       .from("user_roles")
