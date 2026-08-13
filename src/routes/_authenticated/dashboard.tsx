@@ -375,18 +375,27 @@ function DashboardPage() {
       : undefined;
 
   const periodLabel =
-    period === "hoje" ? "hoje" : period === "semana" ? "nesta semana" : "no mês";
+    period === "hoje"
+      ? "hoje"
+      : period === "semana"
+        ? "nesta semana"
+        : `em ${MONTH_NAMES[month]} de ${year}`;
+
+  const years = useMemo(() => {
+    const base = now.getFullYear();
+    return [base - 2, base - 1, base, base + 1];
+  }, [now]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-4">
-          <div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="mr-1">
             <h1 className="font-display text-2xl font-semibold tracking-tight">Dashboard</h1>
             <p className="text-sm text-muted-foreground">Visão operacional {periodLabel}</p>
           </div>
           <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
-            <SelectTrigger className="h-11 w-36" aria-label="Período">
+            <SelectTrigger className="h-11 w-32" aria-label="Período">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -395,6 +404,34 @@ function DashboardPage() {
               <SelectItem value="mes">Mês</SelectItem>
             </SelectContent>
           </Select>
+          {period === "mes" && (
+            <>
+              <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
+                <SelectTrigger className="h-11 w-36" aria-label="Mês">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTH_NAMES.map((m, i) => (
+                    <SelectItem key={m} value={String(i)}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+                <SelectTrigger className="h-11 w-28" aria-label="Ano">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
         </div>
         <ActivityFormDialog
           trigger={
@@ -405,40 +442,62 @@ function DashboardPage() {
         />
       </div>
 
-      {isManager && reviews.length > 0 && (
-        <Card className="border-ev-urgente/40 bg-ev-urgente-soft">
-          <CardHeader className="flex-row items-center gap-2">
-            <AlertTriangle className="size-4 text-ev-urgente" aria-hidden />
-            <CardTitle className="text-base text-ev-urgente">
-              Precisa de atenção · {reviews.length} venda(s) para revisar
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-2 md:grid-cols-2">
-            {reviews.map((s) => (
-              <Link
-                key={s.id}
-                to="/atividades/$activityId"
-                params={{ activityId: s.activity_id }}
-                className="block rounded-lg border border-ev-urgente/30 bg-card px-3 py-2 transition-colors hover:bg-muted/60"
-              >
-                <p className="truncate text-sm font-medium">
-                  OS {s.os_number}
-                  {s.student_name ? ` · ${s.student_name}` : ""}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {s.activities?.schools?.name ?? s.activities?.cities?.name ?? "Sem local"}
-                  {s.activities?.schools?.neighborhood
-                    ? ` · ${s.activities.schools.neighborhood}`
-                    : ""}
-                </p>
-                <p className="mt-0.5 truncate text-xs font-medium text-ev-urgente">
-                  {s.review_reason ?? "Conferência pendente"}
-                </p>
-              </Link>
-            ))}
+      {/* Operacional: acuidade, atendimentos, entregas e próxima entrega */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat
+          label="Escolas com acuidade"
+          value={String(ops.schoolsAcuidade)}
+          icon={School}
+          hint={`${ops.acuidadeTotal} atividade(s) de acuidade`}
+          loading={isLoading}
+        />
+        <Stat
+          label="Atendimentos"
+          value={String(ops.atendimentos)}
+          icon={Stethoscope}
+          hint={`${ops.atendimentosDone} concluídos`}
+          loading={isLoading}
+        />
+        <Stat
+          label="Entregas"
+          value={String(ops.entregas)}
+          icon={PackageCheck}
+          hint={`${ops.entregasDone} concluídas`}
+          loading={isLoading}
+        />
+        <Card>
+          <CardContent className="flex items-start gap-4 p-5">
+            <span className="flex size-11 items-center justify-center rounded-xl bg-ev-entrega-soft text-ev-entrega">
+              <Truck className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Próxima entrega de óculos
+              </p>
+              {nextDelivery ? (
+                <Link
+                  to="/atividades/$activityId"
+                  params={{ activityId: nextDelivery.id }}
+                  className="block"
+                >
+                  <p className="font-display text-lg font-semibold">
+                    {formatDateBR(nextDelivery.activity_date)}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {nextDelivery.schools?.name ?? nextDelivery.cities?.name ?? "Sem local"}
+                    {nextDelivery.schools?.neighborhood
+                      ? ` · ${nextDelivery.schools.neighborhood}`
+                      : ""}
+                  </p>
+                </Link>
+              ) : (
+                <p className="mt-1 text-sm text-muted-foreground">Nenhuma entrega agendada.</p>
+              )}
+            </div>
           </CardContent>
         </Card>
-      )}
+      </div>
+
 
       {isManager ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
