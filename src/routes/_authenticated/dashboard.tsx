@@ -6,6 +6,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Plus,
+  TrendingDown,
   TrendingUp,
 } from "lucide-react";
 
