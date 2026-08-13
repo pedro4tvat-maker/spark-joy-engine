@@ -58,15 +58,15 @@ export const Route = createFileRoute("/_authenticated/atividades/$activityId")({
 });
 
 const FINANCE_FIELDS = [
-  { key: "amount_sold", label: "Valor vendido", money: true },
-  { key: "amount_received", label: "Valor recebido", money: true },
-  { key: "amount_cash", label: "Dinheiro", money: true },
-  { key: "amount_pix", label: "PIX", money: true },
-  { key: "amount_card", label: "Cartão", money: true },
-  { key: "service_count", label: "Atendimentos", money: false },
-  { key: "students_count", label: "Alunos atendidos", money: false },
-  { key: "sales_count", label: "Vendas", money: false },
-  { key: "collaborators_count", label: "Colaboradores", money: false },
+  { key: "amount_sold", label: "Valor vendido", money: true, source: "finance" },
+  { key: "amount_received", label: "Valor recebido", money: true, source: "finance" },
+  { key: "amount_cash", label: "Dinheiro", money: true, source: "finance" },
+  { key: "amount_pix", label: "PIX", money: true, source: "finance" },
+  { key: "amount_card", label: "Cartão", money: true, source: "finance" },
+  { key: "service_count", label: "Atendimentos", money: false, source: "finance" },
+  { key: "students_count", label: "Alunos atendidos", money: false, source: "activity" },
+  { key: "sales_count", label: "Vendas", money: false, source: "finance" },
+  { key: "collaborators_count", label: "Colaboradores", money: false, source: "activity" },
 ] as const;
 
 type FinanceKey = (typeof FINANCE_FIELDS)[number]["key"];
@@ -74,6 +74,7 @@ type FinanceKey = (typeof FINANCE_FIELDS)[number]["key"];
 const EMPTY_FINANCE = Object.fromEntries(
   FINANCE_FIELDS.map((f) => [f.key, ""]),
 ) as Record<FinanceKey, string>;
+
 
 function ActivityDetailPage() {
   const { activityId } = useParams({ from: "/_authenticated/atividades/$activityId" });
