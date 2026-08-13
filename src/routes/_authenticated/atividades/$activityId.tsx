@@ -1,12 +1,23 @@
 import { useEffect, useState } from "react";
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowLeft, Paperclip, Pencil, Plus, Send, Trash2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useListOptions } from "@/hooks/use-list-options";
-import { isManagerRole, useSessionProfile } from "@/hooks/use-session-profile";
+import { isAdminRole, isManagerRole, useSessionProfile } from "@/hooks/use-session-profile";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -79,8 +90,26 @@ const EMPTY_FINANCE = Object.fromEntries(
 function ActivityDetailPage() {
   const { activityId } = useParams({ from: "/_authenticated/atividades/$activityId" });
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { data: profile } = useSessionProfile();
   const isManager = isManagerRole(profile);
+  const isAdmin = isAdminRole(profile);
+  const [deleting, setDeleting] = useState(false);
+
+  /** Exclusão definitiva: as tabelas filhas caem em cascata no banco. */
+  async function deleteActivity() {
+    setDeleting(true);
+    const { error } = await supabase.from("activities").delete().eq("id", activityId);
+    setDeleting(false);
+    if (error) {
+      return toast.error("Não foi possível excluir a atividade", { description: error.message });
+    }
+    toast.success("Atividade excluída");
+    queryClient.invalidateQueries();
+    navigate({ to: "/atividades" });
+  }
+
+
 
 
   const { data: activity, isLoading } = useQuery({
@@ -456,15 +485,47 @@ function ActivityDetailPage() {
                 ))}
               </SelectContent>
             </Select>
-            <ActivityFormDialog
-              activityId={activityId}
-              trigger={
-                <Button variant="outline" className="h-11">
-                  <Pencil className="mr-2 size-4" /> Editar
-                </Button>
-              }
-            />
+            <div className="flex gap-2">
+              <ActivityFormDialog
+                activityId={activityId}
+                trigger={
+                  <Button variant="outline" className="h-11">
+                    <Pencil className="mr-2 size-4" /> Editar
+                  </Button>
+                }
+              />
+              {isAdmin && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="h-11 text-destructive" disabled={deleting}>
+                      <Trash2 className="mr-2 size-4" /> Excluir
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Excluir atividade #{activity.number}?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta ação é definitiva. Checklist, equipe, comentários, anexos, itens de OS,
+                        vendas importadas e o financeiro desta atividade também serão apagados. Se a
+                        atividade apenas não vai acontecer, prefira alterar o status para
+                        "Cancelada".
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Voltar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={deleteActivity}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Excluir definitivamente
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
           </div>
+
         </CardContent>
       </Card>
 
