@@ -11,11 +11,12 @@ import {
   LogOut,
   Menu,
   Search,
+  Users,
   X,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
-import { useSessionProfile } from "@/hooks/use-session-profile";
+import { isAdminRole, useSessionProfile } from "@/hooks/use-session-profile";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -38,10 +39,11 @@ import { APP_ROLES, labelOf } from "@/lib/psvne";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/calendario", label: "Calendário", icon: CalendarDays },
-  { to: "/atividades", label: "Atividades", icon: ListChecks },
-  { to: "/cadastros", label: "Cadastros", icon: Database },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false },
+  { to: "/calendario", label: "Calendário", icon: CalendarDays, adminOnly: false },
+  { to: "/atividades", label: "Atividades", icon: ListChecks, adminOnly: false },
+  { to: "/cadastros", label: "Cadastros", icon: Database, adminOnly: false },
+  { to: "/usuarios", label: "Usuários", icon: Users, adminOnly: true },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
