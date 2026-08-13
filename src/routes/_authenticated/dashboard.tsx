@@ -304,6 +304,9 @@ function Stat({
   icon: Icon,
   tone,
   loading,
+  delta,
+  deltaGood,
+  deltaFormat,
 }: {
   label: string;
   value: string;
@@ -311,7 +314,23 @@ function Stat({
   icon: React.ElementType;
   tone?: string;
   loading?: boolean;
+  /** Variação absoluta vs. mês anterior. undefined = sem base de comparação. */
+  delta?: number;
+  /** Indica se um aumento é favorável ("up") ou desfavorável ("down"). */
+  deltaGood?: "up" | "down";
+  deltaFormat?: (value: number) => string;
 }) {
+  const showDelta = !loading && delta !== undefined && Number.isFinite(delta);
+  const positive = (delta ?? 0) > 0;
+  const favorable = deltaGood ? (positive ? deltaGood === "up" : deltaGood === "down") : null;
+  const deltaColor =
+    delta === 0 || favorable === null
+      ? "text-muted-foreground"
+      : favorable
+        ? "text-success"
+        : "text-destructive";
+  const DeltaIcon = positive ? TrendingUp : TrendingDown;
+  const format = deltaFormat ?? ((v: number) => String(v));
   return (
     <Card>
       <CardContent className="flex items-start gap-4 p-5">
