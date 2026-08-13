@@ -447,7 +447,7 @@ function DashboardPage() {
       </div>
 
       {/* Operacional: acuidade, atendimentos, entregas e próxima entrega */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Stat
           label="Escolas com acuidade"
           value={String(ops.schoolsAcuidade)}
@@ -462,13 +462,7 @@ function DashboardPage() {
           hint={`${ops.atendimentosDone} concluídos`}
           loading={isLoading}
         />
-        <Stat
-          label="Entregas"
-          value={String(ops.entregas)}
-          icon={PackageCheck}
-          hint={`${ops.entregasDone} concluídas`}
-          loading={isLoading}
-        />
+
         <Card>
           <CardContent className="flex items-start gap-4 p-5">
             <span className="flex size-11 items-center justify-center rounded-xl bg-ev-entrega-soft text-ev-entrega">
@@ -504,7 +498,7 @@ function DashboardPage() {
 
 
       {isManager ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Stat
             label="Faturamento total"
             value={formatMoney(kpis.total)}
@@ -519,33 +513,9 @@ function DashboardPage() {
             hint="Dinheiro + Pix + Cartão"
             loading={salesLoading}
           />
-          <Stat
-            label="Crediário a receber"
-            value={formatMoney(kpis.credito)}
-            icon={CreditCard}
-            hint="Parcelado no crediário"
-            loading={salesLoading}
-          />
-          <Stat
-            label="Ticket médio"
-            value={kpis.ticket !== undefined ? formatMoney(kpis.ticket) : "—"}
-            icon={TrendingUp}
-            hint="Sem cortesias"
-            loading={salesLoading}
-          />
-          <Stat
-            label="Taxa de conclusão"
-            value={rate !== undefined ? `${Math.round(rate)}%` : "—"}
-            icon={CheckCircle2}
-            hint="Atividades finalizadas"
-            delta={rateDelta}
-            deltaGood="up"
-            deltaFormat={(v) => `${v}%`}
-            loading={isLoading}
-          />
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Stat
             label="Atividades no período"
             value={String(activities.length)}
@@ -562,18 +532,9 @@ function DashboardPage() {
             loading={isLoading}
             delta={delta(pending.length, prevPending)}
           />
-          <Stat
-            label="Taxa de conclusão"
-            value={rate !== undefined ? `${Math.round(rate)}%` : "—"}
-            icon={CheckCircle2}
-            hint="Atividades finalizadas"
-            delta={rateDelta}
-            deltaGood="up"
-            deltaFormat={(v) => `${v}%`}
-            loading={isLoading}
-          />
         </div>
       )}
+
 
       {isManager && (
         <Card>
