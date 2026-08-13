@@ -20,8 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { APP_ROLES, JOB_ROLES, type AppRole } from "@/lib/psvne";
+import { JOB_ROLES, type AppRole } from "@/lib/psvne";
 import { useListOptions } from "@/hooks/use-list-options";
+import { useAccessTypes, type AccessType } from "@/hooks/use-access-types";
 import { PERMISSIONS, toPermissionMap, useRolePermissions } from "@/lib/permissions";
 import { isAdminRole, useSessionProfile } from "@/hooks/use-session-profile";
 import {
@@ -30,6 +31,7 @@ import {
   setAppUserActive,
   setAppUserRole,
 } from "@/lib/users.functions";
+
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   component: UsersPage,
