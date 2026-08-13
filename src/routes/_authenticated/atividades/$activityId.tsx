@@ -88,7 +88,7 @@ function ActivityDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("activities")
-        .select("*, cities(name, state), schools(name, address)")
+        .select("*, cities(name, state), schools(name, address, neighborhood)")
         .eq("id", activityId)
         .maybeSingle();
       return data;
@@ -442,6 +442,7 @@ function ActivityDetailPage() {
             </p>
             <p className="text-sm text-muted-foreground">
               {activity.schools?.name ?? "Sem escola"} ·{" "}
+              {activity.schools?.neighborhood ? `${activity.schools.neighborhood} · ` : ""}
               {activity.cities?.name ?? "Sem cidade"} · {team?.length ?? 0} na equipe
             </p>
           </div>

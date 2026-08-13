@@ -67,7 +67,7 @@ function CalendarPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("activities")
-        .select("id, number, title, type, status, priority, activity_date, start_time, cities(name), schools(name)")
+        .select("id, number, title, type, status, priority, activity_date, start_time, cities(name), schools(name, neighborhood)")
         .gte("activity_date", start)
         .lte("activity_date", end)
         .order("start_time");
