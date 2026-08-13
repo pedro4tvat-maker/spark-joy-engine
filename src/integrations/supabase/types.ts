@@ -18,11 +18,6 @@ export type Database = {
         Row: {
           activity_date: string
           address: string | null
-          amount_card: number | null
-          amount_cash: number | null
-          amount_pix: number | null
-          amount_received: number | null
-          amount_sold: number | null
           city_id: string | null
           collaborators_count: number | null
           created_at: string
@@ -35,9 +30,7 @@ export type Database = {
           number: number
           owner_id: string | null
           priority: Database["public"]["Enums"]["activity_priority"]
-          sales_count: number | null
           school_id: string | null
-          service_count: number | null
           start_time: string | null
           status: Database["public"]["Enums"]["activity_status"]
           students_count: number | null
@@ -49,11 +42,6 @@ export type Database = {
         Insert: {
           activity_date: string
           address?: string | null
-          amount_card?: number | null
-          amount_cash?: number | null
-          amount_pix?: number | null
-          amount_received?: number | null
-          amount_sold?: number | null
           city_id?: string | null
           collaborators_count?: number | null
           created_at?: string
@@ -66,9 +54,7 @@ export type Database = {
           number?: number
           owner_id?: string | null
           priority?: Database["public"]["Enums"]["activity_priority"]
-          sales_count?: number | null
           school_id?: string | null
-          service_count?: number | null
           start_time?: string | null
           status?: Database["public"]["Enums"]["activity_status"]
           students_count?: number | null
@@ -80,11 +66,6 @@ export type Database = {
         Update: {
           activity_date?: string
           address?: string | null
-          amount_card?: number | null
-          amount_cash?: number | null
-          amount_pix?: number | null
-          amount_received?: number | null
-          amount_sold?: number | null
           city_id?: string | null
           collaborators_count?: number | null
           created_at?: string
@@ -97,9 +78,7 @@ export type Database = {
           number?: number
           owner_id?: string | null
           priority?: Database["public"]["Enums"]["activity_priority"]
-          sales_count?: number | null
           school_id?: string | null
-          service_count?: number | null
           start_time?: string | null
           status?: Database["public"]["Enums"]["activity_status"]
           students_count?: number | null
@@ -241,6 +220,53 @@ export type Database = {
             foreignKeyName: "activity_documents_activity_id_fkey"
             columns: ["activity_id"]
             isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_finance: {
+        Row: {
+          activity_id: string
+          amount_card: number
+          amount_cash: number
+          amount_pix: number
+          amount_received: number
+          amount_sold: number
+          created_at: string
+          sales_count: number
+          service_count: number
+          updated_at: string
+        }
+        Insert: {
+          activity_id: string
+          amount_card?: number
+          amount_cash?: number
+          amount_pix?: number
+          amount_received?: number
+          amount_sold?: number
+          created_at?: string
+          sales_count?: number
+          service_count?: number
+          updated_at?: string
+        }
+        Update: {
+          activity_id?: string
+          amount_card?: number
+          amount_cash?: number
+          amount_pix?: number
+          amount_received?: number
+          amount_sold?: number
+          created_at?: string
+          sales_count?: number
+          service_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_finance_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: true
             referencedRelation: "activities"
             referencedColumns: ["id"]
           },
