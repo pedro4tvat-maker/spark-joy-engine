@@ -6,6 +6,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Plus,
+  TrendingDown,
   TrendingUp,
 } from "lucide-react";
 
@@ -55,6 +56,10 @@ function monthRange(base = new Date()) {
 
 function DashboardPage() {
   const { start, end } = useMemo(() => monthRange(), []);
+  const { start: prevStart, end: prevEnd } = useMemo(() => {
+    const now = new Date();
+    return monthRange(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+  }, []);
   const today = new Date().toISOString().slice(0, 10);
   const { data: profile } = useSessionProfile();
   const isManager = isManagerRole(profile?.roles);
@@ -99,6 +104,56 @@ function DashboardPage() {
   const sold = (finance ?? []).reduce((s, f) => s + Number(f.amount_sold ?? 0), 0);
   const received = (finance ?? []).reduce((s, f) => s + Number(f.amount_received ?? 0), 0);
 
+  /* ---- Mês anterior (comparativo) ---- */
+  const { data: prevData } = useQuery({
+    queryKey: ["dashboard", prevStart, prevEnd],
+    queryFn: async () => {
+      const { data: rows } = await supabase
+        .from("activities")
+        .select("*, cities(name), schools(name)")
+        .gte("activity_date", prevStart)
+        .lte("activity_date", prevEnd)
+        .order("activity_date");
+      return rows ?? [];
+    },
+  });
+
+  const prevActivities = prevData ?? [];
+  const prevIds = prevActivities.map((a) => a.id);
+
+  const { data: prevFinance } = useQuery({
+    queryKey: ["dashboard-finance", prevStart, prevEnd, prevIds.length],
+    enabled: isManager && prevIds.length > 0,
+    queryFn: async () => {
+      const { data: rows } = await supabase
+        .from("activity_finance")
+        .select("amount_sold, amount_received")
+        .in("activity_id", prevIds);
+      return rows ?? [];
+    },
+  });
+
+  const prevLoaded = prevData !== undefined;
+  const prevLate = prevActivities.filter((a) => a.status === "atrasada").length;
+  const prevDone = prevActivities.filter((a) => a.status === "concluida").length;
+  const prevPending = prevActivities.filter(
+    (a) => a.status === "agendada" || a.status === "em_andamento",
+  ).length;
+  const prevSold = (prevFinance ?? []).reduce((s, f) => s + Number(f.amount_sold ?? 0), 0);
+
+  /** Retorna a variação ou undefined quando não há base de comparação. */
+  const delta = (current: number, previous: number | undefined) =>
+    prevLoaded && previous !== undefined ? current - previous : undefined;
+
+  const rate = activities.length ? (done.length / activities.length) * 100 : undefined;
+  const prevRate = prevActivities.length ? (prevDone / prevActivities.length) * 100 : undefined;
+  const rateDelta =
+    prevLoaded && rate !== undefined && prevRate !== undefined
+      ? Math.round(rate - prevRate)
+      : undefined;
+
+
+
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -125,6 +180,7 @@ function DashboardPage() {
           icon={CalendarClock}
           hint={`${done.length} concluídas`}
           loading={isLoading}
+          delta={delta(activities.length, prevActivities.length)}
         />
         <Stat
           label="Atrasadas"
@@ -133,6 +189,8 @@ function DashboardPage() {
           hint="Requer ação imediata"
           tone="urgente"
           loading={isLoading}
+          delta={delta(late.length, prevLate)}
+          deltaGood="down"
         />
         {isManager ? (
           <Stat
@@ -141,6 +199,9 @@ function DashboardPage() {
             icon={TrendingUp}
             hint={`${formatMoney(received)} recebido`}
             loading={isLoading}
+            delta={delta(sold, prevSold)}
+            deltaGood="up"
+            deltaFormat={formatMoney}
           />
         ) : (
           <Stat
@@ -149,15 +210,17 @@ function DashboardPage() {
             icon={CalendarClock}
             hint="Agendadas ou em andamento"
             loading={isLoading}
+            delta={delta(pending.length, prevPending)}
           />
         )}
         <Stat
           label="Taxa de conclusão"
-          value={
-            activities.length ? `${Math.round((done.length / activities.length) * 100)}%` : "—"
-          }
+          value={rate !== undefined ? `${Math.round(rate)}%` : "—"}
           icon={CheckCircle2}
           hint="Atividades finalizadas"
+          delta={rateDelta}
+          deltaGood="up"
+          deltaFormat={(v) => `${v}%`}
           loading={isLoading}
         />
       </div>
@@ -241,6 +304,9 @@ function Stat({
   icon: Icon,
   tone,
   loading,
+  delta,
+  deltaGood,
+  deltaFormat,
 }: {
   label: string;
   value: string;
@@ -248,7 +314,23 @@ function Stat({
   icon: React.ElementType;
   tone?: string;
   loading?: boolean;
+  /** Variação absoluta vs. mês anterior. undefined = sem base de comparação. */
+  delta?: number;
+  /** Indica se um aumento é favorável ("up") ou desfavorável ("down"). */
+  deltaGood?: "up" | "down";
+  deltaFormat?: (value: number) => string;
 }) {
+  const showDelta = !loading && delta !== undefined && Number.isFinite(delta);
+  const positive = (delta ?? 0) > 0;
+  const favorable = deltaGood ? (positive ? deltaGood === "up" : deltaGood === "down") : null;
+  const deltaColor =
+    delta === 0 || favorable === null
+      ? "text-muted-foreground"
+      : favorable
+        ? "text-success"
+        : "text-destructive";
+  const DeltaIcon = positive ? TrendingUp : TrendingDown;
+  const format = deltaFormat ?? ((v: number) => String(v));
   return (
     <Card>
       <CardContent className="flex items-start gap-4 p-5">
@@ -271,6 +353,16 @@ function Stat({
             <p className="font-display text-2xl font-semibold">{value}</p>
           )}
           {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+          {showDelta && (
+            <p className={`mt-0.5 flex items-center gap-1 text-xs font-medium ${deltaColor}`}>
+              {delta !== 0 && <DeltaIcon className="size-3.5" aria-hidden />}
+              <span>
+                {delta === 0
+                  ? "Sem variação vs. mês anterior"
+                  : `${positive ? "+" : "-"}${format(Math.abs(delta!))} vs. mês anterior`}
+              </span>
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>
