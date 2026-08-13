@@ -1,14 +1,30 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  BarChart3,
   CalendarClock,
   CheckCircle2,
+  CreditCard,
   Plus,
+  Receipt,
   TrendingDown,
   TrendingUp,
+  Wallet,
 } from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { supabase } from "@/integrations/supabase/client";
 import { isManagerRole, useSessionProfile } from "@/hooks/use-session-profile";
@@ -16,6 +32,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ActivityFormDialog } from "@/components/activity-form-dialog";
 import {
   ACTIVITY_TYPES,
@@ -47,23 +70,61 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   }),
 });
 
+const iso = (d: Date) => {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
 function monthRange(base = new Date()) {
   const start = new Date(base.getFullYear(), base.getMonth(), 1);
   const end = new Date(base.getFullYear(), base.getMonth() + 1, 0);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
   return { start: iso(start), end: iso(end) };
 }
 
+type PeriodKey = "hoje" | "semana" | "mes";
+
+/** Intervalo (inclusivo) correspondente ao período selecionado. */
+function periodRange(period: PeriodKey, base = new Date()) {
+  if (period === "hoje") return { start: iso(base), end: iso(base) };
+  if (period === "semana") {
+    // Semana de segunda a domingo.
+    const weekday = (base.getDay() + 6) % 7;
+    const first = new Date(base.getFullYear(), base.getMonth(), base.getDate() - weekday);
+    const last = new Date(first.getFullYear(), first.getMonth(), first.getDate() + 6);
+    return { start: iso(first), end: iso(last) };
+  }
+  return monthRange(base);
+}
+
+const num = (v: number | null | undefined) => Number(v ?? 0);
+
+type SaleRow = {
+  total_amount: number | null;
+  cash_amount: number | null;
+  pix_amount: number | null;
+  card_amount: number | null;
+  credit_amount: number | null;
+  is_courtesy: boolean | null;
+  activity_id: string;
+  activities: {
+    activity_date: string;
+    cities: { name: string } | null;
+  } | null;
+};
+
 function DashboardPage() {
-  const { start, end } = useMemo(() => monthRange(), []);
+  const [period, setPeriod] = useState<PeriodKey>("mes");
+  const { start, end } = useMemo(() => periodRange(period), [period]);
+  const { start: monthStart, end: monthEnd } = useMemo(() => monthRange(), []);
   const { start: prevStart, end: prevEnd } = useMemo(() => {
     const now = new Date();
     return monthRange(new Date(now.getFullYear(), now.getMonth() - 1, 1));
   }, []);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = iso(new Date());
   const { data: profile } = useSessionProfile();
   const isManager = isManagerRole(profile);
 
+  /* Atividades do período selecionado (KPIs operacionais). */
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard", start, end],
     queryFn: async () => {
@@ -77,34 +138,166 @@ function DashboardPage() {
     },
   });
 
-  const activities = data ?? [];
-  const ids = activities.map((a) => a.id);
-
-  const { data: finance } = useQuery({
-    queryKey: ["dashboard-finance", start, end, ids.length],
-    enabled: isManager && ids.length > 0,
+  /* Atividades do mês corrente — seções "Hoje", "Alertas" e "Próximas". */
+  const { data: monthData, isLoading: monthLoading } = useQuery({
+    queryKey: ["dashboard", monthStart, monthEnd],
     queryFn: async () => {
       const { data: rows } = await supabase
-        .from("activity_finance")
-        .select("amount_sold, amount_received")
-        .in("activity_id", ids);
+        .from("activities")
+        .select("*, cities(name), schools(name, neighborhood)")
+        .gte("activity_date", monthStart)
+        .lte("activity_date", monthEnd)
+        .order("activity_date");
       return rows ?? [];
     },
   });
 
-  const todays = activities.filter((a) => a.activity_date === today);
-  const upcoming = activities
+  const activities = data ?? [];
+  const monthActivities = monthData ?? [];
+
+  const todays = monthActivities.filter((a) => a.activity_date === today);
+  const upcoming = monthActivities
     .filter((a) => a.activity_date > today && a.status !== "cancelada")
     .slice(0, 6);
-  const late = activities.filter((a) => a.status === "atrasada");
+  const late = monthActivities.filter((a) => a.status === "atrasada");
   const done = activities.filter((a) => a.status === "concluida");
   const pending = activities.filter(
     (a) => a.status === "agendada" || a.status === "em_andamento",
   );
-  const sold = (finance ?? []).reduce((s, f) => s + Number(f.amount_sold ?? 0), 0);
-  const received = (finance ?? []).reduce((s, f) => s + Number(f.amount_received ?? 0), 0);
 
-  /* ---- Mês anterior (comparativo) ---- */
+  /* ---- Vendas do período selecionado ---- */
+  const { data: salesData, isLoading: salesLoading } = useQuery({
+    queryKey: ["dashboard-sales", start, end],
+    enabled: isManager,
+    queryFn: async () => {
+      const { data: rows, error } = await supabase
+        .from("sales")
+        .select(
+          "total_amount, cash_amount, pix_amount, card_amount, credit_amount, is_courtesy, activity_id, activities!inner(activity_date, cities(name))",
+        )
+        .gte("activities.activity_date", start)
+        .lte("activities.activity_date", end);
+      if (error) throw error;
+      return (rows ?? []) as unknown as SaleRow[];
+    },
+  });
+
+  const sales = salesData ?? [];
+
+  const kpis = useMemo(() => {
+    let total = 0;
+    let entradas = 0;
+    let credito = 0;
+    let pagos = 0;
+    let pagosCount = 0;
+    for (const s of sales) {
+      total += num(s.total_amount);
+      entradas += num(s.cash_amount) + num(s.pix_amount) + num(s.card_amount);
+      credito += num(s.credit_amount);
+      if (!s.is_courtesy) {
+        pagos += num(s.total_amount);
+        pagosCount += 1;
+      }
+    }
+    return {
+      total,
+      entradas,
+      credito,
+      ticket: pagosCount > 0 ? pagos / pagosCount : undefined,
+    };
+  }, [sales]);
+
+  const payments = useMemo(() => {
+    const cash = sales.reduce((s, r) => s + num(r.cash_amount), 0);
+    const pix = sales.reduce((s, r) => s + num(r.pix_amount), 0);
+    const card = sales.reduce((s, r) => s + num(r.card_amount), 0);
+    const list = [
+      { name: "Dinheiro", value: cash, color: "var(--color-chart-1)" },
+      { name: "Pix", value: pix, color: "var(--color-chart-2)" },
+      { name: "Cartão", value: card, color: "var(--color-chart-3)" },
+    ];
+    const totalPay = cash + pix + card;
+    return { list, total: totalPay };
+  }, [sales]);
+
+  const topCities = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of sales) {
+      const name = s.activities?.cities?.name ?? "Sem cidade";
+      map.set(name, (map.get(name) ?? 0) + num(s.total_amount));
+    }
+    return [...map.entries()]
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [sales]);
+
+  /* ---- Tendência diária (sempre mês corrente) ---- */
+  const { data: monthSales } = useQuery({
+    queryKey: ["dashboard-sales-trend", monthStart, monthEnd],
+    enabled: isManager,
+    queryFn: async () => {
+      const { data: rows, error } = await supabase
+        .from("sales")
+        .select("total_amount, activities!inner(activity_date)")
+        .gte("activities.activity_date", monthStart)
+        .lte("activities.activity_date", monthEnd);
+      if (error) throw error;
+      return (rows ?? []) as unknown as {
+        total_amount: number | null;
+        activities: { activity_date: string } | null;
+      }[];
+    },
+  });
+
+  const trend = useMemo(() => {
+    const now = new Date();
+    const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const totals = new Map<string, number>();
+    for (const s of monthSales ?? []) {
+      const d = s.activities?.activity_date;
+      if (!d) continue;
+      totals.set(d, (totals.get(d) ?? 0) + num(s.total_amount));
+    }
+    return Array.from({ length: days }, (_, i) => {
+      const date = iso(new Date(now.getFullYear(), now.getMonth(), i + 1));
+      return { date, day: String(i + 1), value: totals.get(date) ?? 0 };
+    });
+  }, [monthSales]);
+
+  const trendHasData = trend.some((d) => d.value > 0);
+
+  /* ---- Vendas que precisam de revisão (sem filtro de período) ---- */
+  const { data: reviewSales } = useQuery({
+    queryKey: ["dashboard-sales-review"],
+    enabled: isManager,
+    queryFn: async () => {
+      const { data: rows, error } = await supabase
+        .from("sales")
+        .select(
+          "id, os_number, student_name, review_reason, activity_id, activities(schools(name, neighborhood), cities(name))",
+        )
+        .eq("needs_review", true)
+        .order("imported_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (rows ?? []) as unknown as {
+        id: string;
+        os_number: string;
+        student_name: string | null;
+        review_reason: string | null;
+        activity_id: string;
+        activities: {
+          schools: { name: string; neighborhood: string | null } | null;
+          cities: { name: string } | null;
+        } | null;
+      }[];
+    },
+  });
+
+  const reviews = reviewSales ?? [];
+
+  /* ---- Mês anterior (comparativo dos cards operacionais) ---- */
   const { data: prevData } = useQuery({
     queryKey: ["dashboard", prevStart, prevEnd],
     queryFn: async () => {
@@ -119,50 +312,44 @@ function DashboardPage() {
   });
 
   const prevActivities = prevData ?? [];
-  const prevIds = prevActivities.map((a) => a.id);
-
-  const { data: prevFinance } = useQuery({
-    queryKey: ["dashboard-finance", prevStart, prevEnd, prevIds.length],
-    enabled: isManager && prevIds.length > 0,
-    queryFn: async () => {
-      const { data: rows } = await supabase
-        .from("activity_finance")
-        .select("amount_sold, amount_received")
-        .in("activity_id", prevIds);
-      return rows ?? [];
-    },
-  });
-
   const prevLoaded = prevData !== undefined;
-  const prevLate = prevActivities.filter((a) => a.status === "atrasada").length;
   const prevDone = prevActivities.filter((a) => a.status === "concluida").length;
   const prevPending = prevActivities.filter(
     (a) => a.status === "agendada" || a.status === "em_andamento",
   ).length;
-  const prevSold = (prevFinance ?? []).reduce((s, f) => s + Number(f.amount_sold ?? 0), 0);
 
   /** Retorna a variação ou undefined quando não há base de comparação. */
   const delta = (current: number, previous: number | undefined) =>
-    prevLoaded && previous !== undefined ? current - previous : undefined;
+    prevLoaded && previous !== undefined && period === "mes" ? current - previous : undefined;
 
   const rate = activities.length ? (done.length / activities.length) * 100 : undefined;
   const prevRate = prevActivities.length ? (prevDone / prevActivities.length) * 100 : undefined;
   const rateDelta =
-    prevLoaded && rate !== undefined && prevRate !== undefined
+    prevLoaded && period === "mes" && rate !== undefined && prevRate !== undefined
       ? Math.round(rate - prevRate)
       : undefined;
 
-
-
+  const periodLabel =
+    period === "hoje" ? "hoje" : period === "semana" ? "nesta semana" : "no mês";
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Visão operacional do mês corrente
-          </p>
+        <div className="flex flex-wrap items-end gap-4">
+          <div>
+            <h1 className="font-display text-2xl font-semibold tracking-tight">Dashboard</h1>
+            <p className="text-sm text-muted-foreground">Visão operacional {periodLabel}</p>
+          </div>
+          <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
+            <SelectTrigger className="h-11 w-36" aria-label="Período">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="hoje">Hoje</SelectItem>
+              <SelectItem value="semana">Semana</SelectItem>
+              <SelectItem value="mes">Mês</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <ActivityFormDialog
           trigger={
@@ -173,37 +360,92 @@ function DashboardPage() {
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat
-          label="Atividades no mês"
-          value={String(activities.length)}
-          icon={CalendarClock}
-          hint={`${done.length} concluídas`}
-          loading={isLoading}
-          delta={delta(activities.length, prevActivities.length)}
-        />
-        <Stat
-          label="Atrasadas"
-          value={String(late.length)}
-          icon={AlertTriangle}
-          hint="Requer ação imediata"
-          tone="urgente"
-          loading={isLoading}
-          delta={delta(late.length, prevLate)}
-          deltaGood="down"
-        />
-        {isManager ? (
+      {isManager && reviews.length > 0 && (
+        <Card className="border-ev-urgente/40 bg-ev-urgente-soft">
+          <CardHeader className="flex-row items-center gap-2">
+            <AlertTriangle className="size-4 text-ev-urgente" aria-hidden />
+            <CardTitle className="text-base text-ev-urgente">
+              Precisa de atenção · {reviews.length} venda(s) para revisar
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2 md:grid-cols-2">
+            {reviews.map((s) => (
+              <Link
+                key={s.id}
+                to="/atividades/$activityId"
+                params={{ activityId: s.activity_id }}
+                className="block rounded-lg border border-ev-urgente/30 bg-card px-3 py-2 transition-colors hover:bg-muted/60"
+              >
+                <p className="truncate text-sm font-medium">
+                  OS {s.os_number}
+                  {s.student_name ? ` · ${s.student_name}` : ""}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {s.activities?.schools?.name ?? s.activities?.cities?.name ?? "Sem local"}
+                  {s.activities?.schools?.neighborhood
+                    ? ` · ${s.activities.schools.neighborhood}`
+                    : ""}
+                </p>
+                <p className="mt-0.5 truncate text-xs font-medium text-ev-urgente">
+                  {s.review_reason ?? "Conferência pendente"}
+                </p>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {isManager ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <Stat
-            label="Vendido no mês"
-            value={formatMoney(sold)}
-            icon={TrendingUp}
-            hint={`${formatMoney(received)} recebido`}
-            loading={isLoading}
-            delta={delta(sold, prevSold)}
-            deltaGood="up"
-            deltaFormat={formatMoney}
+            label="Faturamento total"
+            value={formatMoney(kpis.total)}
+            icon={Receipt}
+            hint={`${sales.length} venda(s)`}
+            loading={salesLoading}
           />
-        ) : (
+          <Stat
+            label="Entradas recebidas"
+            value={formatMoney(kpis.entradas)}
+            icon={Wallet}
+            hint="Dinheiro + Pix + Cartão"
+            loading={salesLoading}
+          />
+          <Stat
+            label="Crediário a receber"
+            value={formatMoney(kpis.credito)}
+            icon={CreditCard}
+            hint="Parcelado no crediário"
+            loading={salesLoading}
+          />
+          <Stat
+            label="Ticket médio"
+            value={kpis.ticket !== undefined ? formatMoney(kpis.ticket) : "—"}
+            icon={TrendingUp}
+            hint="Sem cortesias"
+            loading={salesLoading}
+          />
+          <Stat
+            label="Taxa de conclusão"
+            value={rate !== undefined ? `${Math.round(rate)}%` : "—"}
+            icon={CheckCircle2}
+            hint="Atividades finalizadas"
+            delta={rateDelta}
+            deltaGood="up"
+            deltaFormat={(v) => `${v}%`}
+            loading={isLoading}
+          />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <Stat
+            label="Atividades no período"
+            value={String(activities.length)}
+            icon={CalendarClock}
+            hint={`${done.length} concluídas`}
+            loading={isLoading}
+            delta={delta(activities.length, prevActivities.length)}
+          />
           <Stat
             label="Em aberto"
             value={String(pending.length)}
@@ -212,18 +454,149 @@ function DashboardPage() {
             loading={isLoading}
             delta={delta(pending.length, prevPending)}
           />
-        )}
-        <Stat
-          label="Taxa de conclusão"
-          value={rate !== undefined ? `${Math.round(rate)}%` : "—"}
-          icon={CheckCircle2}
-          hint="Atividades finalizadas"
-          delta={rateDelta}
-          deltaGood="up"
-          deltaFormat={(v) => `${v}%`}
-          loading={isLoading}
-        />
-      </div>
+          <Stat
+            label="Taxa de conclusão"
+            value={rate !== undefined ? `${Math.round(rate)}%` : "—"}
+            icon={CheckCircle2}
+            hint="Atividades finalizadas"
+            delta={rateDelta}
+            deltaGood="up"
+            deltaFormat={(v) => `${v}%`}
+            loading={isLoading}
+          />
+        </div>
+      )}
+
+      {isManager && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Faturamento por dia · mês corrente</CardTitle>
+          </CardHeader>
+          <CardContent className="h-72">
+            {!trendHasData ? (
+              <p className="py-16 text-center text-sm text-muted-foreground">
+                Nenhuma venda registrada neste mês.
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                  <XAxis dataKey="day" tickLine={false} axisLine={false} fontSize={12} />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={12}
+                    width={70}
+                    tickFormatter={(v: number) => formatMoney(v)}
+                  />
+                  <Tooltip
+                    formatter={(v: number) => [formatMoney(v), "Faturamento"]}
+                    labelFormatter={(_l, payload) => {
+                      const date = payload?.[0]?.payload?.date as string | undefined;
+                      return date ? formatDateBR(date) : "";
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="var(--color-chart-1)"
+                    strokeWidth={2}
+                    fill="url(#trendFill)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {isManager && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Formas de pagamento</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {payments.total === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  Nenhum recebimento no período.
+                </p>
+              ) : (
+                <div className="flex flex-wrap items-center gap-6">
+                  <div className="h-40 w-40 shrink-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={payments.list}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={38}
+                          outerRadius={65}
+                          paddingAngle={2}
+                        >
+                          {payments.list.map((p) => (
+                            <Cell key={p.name} fill={p.color} stroke="var(--color-card)" />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => formatMoney(v)} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <ul className="min-w-0 flex-1 space-y-2">
+                    {payments.list.map((p) => (
+                      <li key={p.name} className="flex items-center gap-2 text-sm">
+                        <span
+                          className="size-3 shrink-0 rounded-sm"
+                          style={{ backgroundColor: p.color }}
+                          aria-hidden
+                        />
+                        <span className="flex-1 truncate">{p.name}</span>
+                        <span className="font-medium">{formatMoney(p.value)}</span>
+                        <span className="w-12 text-right text-xs text-muted-foreground">
+                          {Math.round((p.value / payments.total) * 100)}%
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle className="text-base">Top cidades</CardTitle>
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/vendas">
+                  <BarChart3 className="mr-2 size-4" /> Ver relatório completo
+                </Link>
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {topCities.length === 0 && (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  Nenhuma venda registrada no período.
+                </p>
+              )}
+              {topCities.map((c) => (
+                <div
+                  key={c.name}
+                  className="flex items-center justify-between rounded-lg border bg-card px-3 py-2 text-sm"
+                >
+                  <span className="truncate">{c.name}</span>
+                  <span className="font-medium">{formatMoney(c.value)}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -234,8 +607,8 @@ function DashboardPage() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-2">
-            {isLoading && <Skeleton className="h-20 w-full" />}
-            {!isLoading && todays.length === 0 && (
+            {monthLoading && <Skeleton className="h-20 w-full" />}
+            {!monthLoading && todays.length === 0 && (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 Nenhuma atividade programada para hoje.
               </p>
@@ -283,7 +656,7 @@ function DashboardPage() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-2">
-          {!isLoading && upcoming.length === 0 && (
+          {!monthLoading && upcoming.length === 0 && (
             <p className="py-6 text-center text-sm text-muted-foreground">
               Nada agendado para os próximos dias deste mês.
             </p>
@@ -296,6 +669,7 @@ function DashboardPage() {
     </div>
   );
 }
+
 
 function Stat({
   label,
