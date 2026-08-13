@@ -485,15 +485,47 @@ function ActivityDetailPage() {
                 ))}
               </SelectContent>
             </Select>
-            <ActivityFormDialog
-              activityId={activityId}
-              trigger={
-                <Button variant="outline" className="h-11">
-                  <Pencil className="mr-2 size-4" /> Editar
-                </Button>
-              }
-            />
+            <div className="flex gap-2">
+              <ActivityFormDialog
+                activityId={activityId}
+                trigger={
+                  <Button variant="outline" className="h-11">
+                    <Pencil className="mr-2 size-4" /> Editar
+                  </Button>
+                }
+              />
+              {isAdmin && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="h-11 text-destructive" disabled={deleting}>
+                      <Trash2 className="mr-2 size-4" /> Excluir
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Excluir atividade #{activity.number}?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta ação é definitiva. Checklist, equipe, comentários, anexos, itens de OS,
+                        vendas importadas e o financeiro desta atividade também serão apagados. Se a
+                        atividade apenas não vai acontecer, prefira alterar o status para
+                        "Cancelada".
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Voltar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={deleteActivity}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Excluir definitivamente
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
           </div>
+
         </CardContent>
       </Card>
 
