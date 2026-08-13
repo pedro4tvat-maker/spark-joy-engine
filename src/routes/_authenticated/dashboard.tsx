@@ -2,17 +2,21 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle,
   BarChart3,
   CalendarClock,
   CheckCircle2,
   CreditCard,
+  PackageCheck,
   Plus,
   Receipt,
+  School,
+  Stethoscope,
   TrendingDown,
   TrendingUp,
+  Truck,
   Wallet,
 } from "lucide-react";
+
 import {
   Area,
   AreaChart,
