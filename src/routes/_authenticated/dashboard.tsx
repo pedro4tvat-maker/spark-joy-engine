@@ -56,6 +56,10 @@ function monthRange(base = new Date()) {
 
 function DashboardPage() {
   const { start, end } = useMemo(() => monthRange(), []);
+  const { start: prevStart, end: prevEnd } = useMemo(() => {
+    const now = new Date();
+    return monthRange(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+  }, []);
   const today = new Date().toISOString().slice(0, 10);
   const { data: profile } = useSessionProfile();
   const isManager = isManagerRole(profile?.roles);
