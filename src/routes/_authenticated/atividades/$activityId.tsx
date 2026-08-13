@@ -471,8 +471,8 @@ function ActivityDetailPage() {
         <TabsList className="flex-wrap">
           <TabsTrigger value="checklist">Checklist ({doneCount}/{checklist?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="equipe">Equipe ({team?.length ?? 0})</TabsTrigger>
-          <TabsTrigger value="itens">Itens / OS</TabsTrigger>
-          <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
+          {isManager && <TabsTrigger value="itens">Itens / OS</TabsTrigger>}
+          {isManager && <TabsTrigger value="financeiro">Financeiro</TabsTrigger>}
           <TabsTrigger value="comentarios">Comentários</TabsTrigger>
           <TabsTrigger value="anexos">Anexos</TabsTrigger>
         </TabsList>
@@ -556,6 +556,7 @@ function ActivityDetailPage() {
           </Card>
         </TabsContent>
 
+        {isManager && (
         <TabsContent value="itens">
           <Card>
             <CardHeader>
@@ -634,7 +635,9 @@ function ActivityDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
+        {isManager && (
         <TabsContent value="financeiro">
           <Card>
             <CardHeader>
@@ -696,6 +699,7 @@ function ActivityDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
         <TabsContent value="comentarios">
           <Card>
