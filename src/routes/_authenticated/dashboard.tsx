@@ -578,7 +578,10 @@ function DashboardPage() {
       {isManager && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Faturamento por dia · mês corrente</CardTitle>
+            <CardTitle className="text-base">
+              Faturamento por dia · {MONTH_NAMES[month]} de {year}
+            </CardTitle>
+
           </CardHeader>
           <CardContent className="h-72">
             {!trendHasData ? (
