@@ -353,6 +353,16 @@ function Stat({
             <p className="font-display text-2xl font-semibold">{value}</p>
           )}
           {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+          {showDelta && (
+            <p className={`mt-0.5 flex items-center gap-1 text-xs font-medium ${deltaColor}`}>
+              {delta !== 0 && <DeltaIcon className="size-3.5" aria-hidden />}
+              <span>
+                {delta === 0
+                  ? "Sem variação vs. mês anterior"
+                  : `${positive ? "+" : "-"}${format(Math.abs(delta!))} vs. mês anterior`}
+              </span>
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>
