@@ -90,8 +90,26 @@ const EMPTY_FINANCE = Object.fromEntries(
 function ActivityDetailPage() {
   const { activityId } = useParams({ from: "/_authenticated/atividades/$activityId" });
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { data: profile } = useSessionProfile();
   const isManager = isManagerRole(profile);
+  const isAdmin = isAdminRole(profile);
+  const [deleting, setDeleting] = useState(false);
+
+  /** Exclusão definitiva: as tabelas filhas caem em cascata no banco. */
+  async function deleteActivity() {
+    setDeleting(true);
+    const { error } = await supabase.from("activities").delete().eq("id", activityId);
+    setDeleting(false);
+    if (error) {
+      return toast.error("Não foi possível excluir a atividade", { description: error.message });
+    }
+    toast.success("Atividade excluída");
+    queryClient.invalidateQueries();
+    navigate({ to: "/atividades" });
+  }
+
+
 
 
   const { data: activity, isLoading } = useQuery({
