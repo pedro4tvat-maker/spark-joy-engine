@@ -1,5 +1,8 @@
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+
+type SaleInsert = Database["public"]["Tables"]["sales"]["Insert"];
 
 /** Uma linha de venda lida da aba "Dados" da planilha. */
 export type SalesRow = {
@@ -322,7 +325,7 @@ export async function runImport(rows: SalesRow[], userId: string | null): Promis
     return created.id;
   }
 
-  const payload: Record<string, unknown>[] = [];
+  const payload: SaleInsert[] = [];
   for (const row of rows) {
     const activityId = await resolveActivity(row);
     payload.push({
@@ -353,7 +356,7 @@ export async function runImport(rows: SalesRow[], userId: string | null): Promis
   }
 
   // Recalcula o financeiro de cada atividade afetada com base em TODAS as vendas
-  const activityIds = Array.from(new Set(payload.map((p) => p.activity_id as string)));
+  const activityIds = Array.from(new Set(payload.map((p) => p.activity_id)));
   for (const activityId of activityIds) {
     const { data: sales, error } = await supabase
       .from("sales")
