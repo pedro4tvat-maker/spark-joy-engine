@@ -330,25 +330,36 @@ function ActivityDetailPage() {
 
   async function saveFinance() {
     setSavingFinance(true);
-    const num = (k: FinanceKey) => (finance[k] === "" ? null : Number(finance[k]));
-    const payload = {
-      amount_sold: num("amount_sold"),
-      amount_received: num("amount_received"),
-      amount_cash: num("amount_cash"),
-      amount_pix: num("amount_pix"),
-      amount_card: num("amount_card"),
-      service_count: num("service_count"),
-      students_count: num("students_count"),
-      sales_count: num("sales_count"),
-      collaborators_count: num("collaborators_count"),
-    };
-    const { error } = await supabase.from("activities").update(payload).eq("id", activityId);
+    const num = (k: FinanceKey) => (finance[k] === "" ? 0 : Number(finance[k]));
+    const { error } = await supabase.from("activity_finance").upsert(
+      {
+        activity_id: activityId,
+        amount_sold: num("amount_sold"),
+        amount_received: num("amount_received"),
+        amount_cash: num("amount_cash"),
+        amount_pix: num("amount_pix"),
+        amount_card: num("amount_card"),
+        service_count: num("service_count"),
+        sales_count: num("sales_count"),
+      },
+      { onConflict: "activity_id" },
+    );
+    const { error: activityError } = await supabase
+      .from("activities")
+      .update({
+        students_count: finance.students_count === "" ? null : Number(finance.students_count),
+        collaborators_count:
+          finance.collaborators_count === "" ? null : Number(finance.collaborators_count),
+      })
+      .eq("id", activityId);
     setSavingFinance(false);
-    if (error) return toast.error("Erro ao salvar financeiro", { description: error.message });
+    const failure = error ?? activityError;
+    if (failure) return toast.error("Erro ao salvar financeiro", { description: failure.message });
     setFinanceDirty(false);
     toast.success("Financeiro salvo");
     refresh();
   }
+
 
   function fillFromItems() {
     setFinance((prev) => ({
