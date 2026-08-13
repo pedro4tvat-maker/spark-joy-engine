@@ -134,13 +134,23 @@ function DashboardPage() {
           tone="urgente"
           loading={isLoading}
         />
-        <Stat
-          label="Vendido no mês"
-          value={formatMoney(sold)}
-          icon={TrendingUp}
-          hint={`${formatMoney(received)} recebido`}
-          loading={isLoading}
-        />
+        {isManager ? (
+          <Stat
+            label="Vendido no mês"
+            value={formatMoney(sold)}
+            icon={TrendingUp}
+            hint={`${formatMoney(received)} recebido`}
+            loading={isLoading}
+          />
+        ) : (
+          <Stat
+            label="Em aberto"
+            value={String(pending.length)}
+            icon={CalendarClock}
+            hint="Agendadas ou em andamento"
+            loading={isLoading}
+          />
+        )}
         <Stat
           label="Taxa de conclusão"
           value={
