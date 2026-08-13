@@ -79,12 +79,16 @@ function UsersPage() {
         <TabsList>
           <TabsTrigger value="contas">Contas</TabsTrigger>
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
+          <TabsTrigger value="tipos">Tipos de acesso</TabsTrigger>
         </TabsList>
         <TabsContent value="contas" className="mt-4 space-y-5">
           <AccountsTab />
         </TabsContent>
         <TabsContent value="permissoes" className="mt-4">
           <PermissionsTab />
+        </TabsContent>
+        <TabsContent value="tipos" className="mt-4">
+          <AccessTypesTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -101,6 +105,7 @@ function AccountsTab() {
   const { options: jobRoles } = useListOptions("job_role", JOB_ROLES as unknown as string[]);
   const { data: permissionRows } = useRolePermissions();
   const permissionMap = toPermissionMap(permissionRows);
+  const { options: accessOptions } = useAccessTypes();
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["app-users"],
@@ -207,7 +212,7 @@ function AccountsTab() {
               >
                 <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {APP_ROLES.map((r) => (
+                  {accessOptions.map((r) => (
                     <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -271,7 +276,7 @@ function AccountsTab() {
                   <SelectValue placeholder="Sem papel" />
                 </SelectTrigger>
                 <SelectContent>
-                  {APP_ROLES.map((r) => (
+                  {accessOptions.map((r) => (
                     <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -306,6 +311,7 @@ function AccountsTab() {
 function PermissionsTab() {
   const queryClient = useQueryClient();
   const { data: rows, isLoading } = useRolePermissions();
+  const { options: accessOptions } = useAccessTypes();
   const [role, setRole] = useState<AppRole>("vendedor");
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -333,7 +339,7 @@ function PermissionsTab() {
         <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
           <SelectTrigger className="h-11 w-full sm:w-64"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {APP_ROLES.map((r) => (
+            {accessOptions.map((r) => (
               <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
             ))}
           </SelectContent>
