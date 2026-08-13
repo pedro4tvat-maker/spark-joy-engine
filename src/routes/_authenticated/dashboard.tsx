@@ -180,6 +180,7 @@ function DashboardPage() {
           icon={CalendarClock}
           hint={`${done.length} concluídas`}
           loading={isLoading}
+          delta={delta(activities.length, prevActivities.length)}
         />
         <Stat
           label="Atrasadas"
@@ -188,6 +189,8 @@ function DashboardPage() {
           hint="Requer ação imediata"
           tone="urgente"
           loading={isLoading}
+          delta={delta(late.length, prevLate)}
+          deltaGood="down"
         />
         {isManager ? (
           <Stat
@@ -196,6 +199,9 @@ function DashboardPage() {
             icon={TrendingUp}
             hint={`${formatMoney(received)} recebido`}
             loading={isLoading}
+            delta={delta(sold, prevSold)}
+            deltaGood="up"
+            deltaFormat={formatMoney}
           />
         ) : (
           <Stat
@@ -204,15 +210,17 @@ function DashboardPage() {
             icon={CalendarClock}
             hint="Agendadas ou em andamento"
             loading={isLoading}
+            delta={delta(pending.length, prevPending)}
           />
         )}
         <Stat
           label="Taxa de conclusão"
-          value={
-            activities.length ? `${Math.round((done.length / activities.length) * 100)}%` : "—"
-          }
+          value={rate !== undefined ? `${Math.round(rate)}%` : "—"}
           icon={CheckCircle2}
           hint="Atividades finalizadas"
+          delta={rateDelta}
+          deltaGood="up"
+          deltaFormat={(v) => `${v}%`}
           loading={isLoading}
         />
       </div>
