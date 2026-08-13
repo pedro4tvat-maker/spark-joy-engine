@@ -447,7 +447,7 @@ function DashboardPage() {
       </div>
 
       {/* Operacional: acuidade, atendimentos, entregas e próxima entrega */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Stat
           label="Escolas com acuidade"
           value={String(ops.schoolsAcuidade)}
@@ -462,13 +462,7 @@ function DashboardPage() {
           hint={`${ops.atendimentosDone} concluídos`}
           loading={isLoading}
         />
-        <Stat
-          label="Entregas"
-          value={String(ops.entregas)}
-          icon={PackageCheck}
-          hint={`${ops.entregasDone} concluídas`}
-          loading={isLoading}
-        />
+
         <Card>
           <CardContent className="flex items-start gap-4 p-5">
             <span className="flex size-11 items-center justify-center rounded-xl bg-ev-entrega-soft text-ev-entrega">
