@@ -11,14 +11,18 @@ export const listAppUsers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context as any);
+    // Sensitive profile columns (email, job_title) are not exposed to the API roles,
+    // so read them with the admin client only after the caller is verified as admin.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const [{ data: profiles }, { data: roles }] = await Promise.all([
-      context.supabase.from("profiles").select("id, full_name, email, job_title, active, created_at").order("full_name"),
-      context.supabase.from("user_roles").select("user_id, role"),
+      supabaseAdmin.from("profiles").select("id, full_name, email, job_title, active, created_at").order("full_name"),
+      supabaseAdmin.from("user_roles").select("user_id, role"),
     ]);
     const roleMap = new Map<string, string[]>();
     for (const r of roles ?? []) {
       roleMap.set(r.user_id, [...(roleMap.get(r.user_id) ?? []), r.role]);
     }
+
     return (profiles ?? []).map((p: any) => ({
       id: p.id as string,
       fullName: (p.full_name as string) ?? "",
