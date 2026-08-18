@@ -31,7 +31,7 @@ export function useSessionProfile() {
 
       return {
         userId: user.id,
-        email: profile?.email ?? user.email ?? null,
+        email: user.email ?? null,
         fullName: profile?.full_name || (user.email ?? "Usuário"),
         avatarUrl: profile?.avatar_url ?? null,
         roles: userRoles,
