@@ -1087,7 +1087,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      profiles_basic: {
+        Row: {
+          active: boolean | null
+          avatar_url: string | null
+          full_name: string | null
+          id: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          avatar_url?: string | null
+          full_name?: string | null
+          id?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          avatar_url?: string | null
+          full_name?: string | null
+          id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       can_see_activity: {
