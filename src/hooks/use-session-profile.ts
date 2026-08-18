@@ -21,7 +21,7 @@ export function useSessionProfile() {
       if (!user) return null;
 
       const [{ data: profile }, { data: roles }, { data: accessTypes }] = await Promise.all([
-        supabase.from("profiles").select("full_name, avatar_url, email").eq("id", user.id).maybeSingle(),
+        supabase.from("profiles").select("full_name, avatar_url").eq("id", user.id).maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", user.id),
         supabase.from("access_types").select("key, is_manager, is_admin, active"),
       ]);
@@ -31,7 +31,7 @@ export function useSessionProfile() {
 
       return {
         userId: user.id,
-        email: profile?.email ?? user.email ?? null,
+        email: user.email ?? null,
         fullName: profile?.full_name || (user.email ?? "Usuário"),
         avatarUrl: profile?.avatar_url ?? null,
         roles: userRoles,
