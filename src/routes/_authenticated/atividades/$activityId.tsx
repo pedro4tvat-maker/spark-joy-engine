@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Paperclip, Pencil, Plus, Send, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Paperclip, Pencil, Plus, Send, Trash2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useListOptions } from "@/hooks/use-list-options";
@@ -195,6 +195,19 @@ function ActivityDetailPage() {
         .select("*")
         .eq("activity_id", activityId)
         .order("created_at");
+      return data ?? [];
+    },
+  });
+
+  const { data: pendencies } = useQuery({
+    queryKey: ["pendencies", activityId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("activity_pendencies")
+        .select("*")
+        .eq("activity_id", activityId)
+        .order("status")
+        .order("due_date", { nullsFirst: false });
       return data ?? [];
     },
   });
