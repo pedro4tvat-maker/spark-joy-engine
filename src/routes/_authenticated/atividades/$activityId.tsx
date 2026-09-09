@@ -599,6 +599,113 @@ function ActivityDetailPage() {
           <TabsTrigger value="anexos">Anexos</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="pendencias">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Pendências da atividade</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Textarea
+                  rows={2}
+                  maxLength={500}
+                  className="sm:col-span-2"
+                  placeholder="Descreva a pendência (ex.: faltou entregar 3 óculos da escola X)"
+                  value={pendency.description}
+                  onChange={(e) => setPendency({ ...pendency, description: e.target.value })}
+                />
+                <Input
+                  className="h-11"
+                  maxLength={120}
+                  placeholder="Responsável (opcional)"
+                  value={pendency.responsible}
+                  onChange={(e) => setPendency({ ...pendency, responsible: e.target.value })}
+                />
+                <Input
+                  className="h-11"
+                  type="date"
+                  value={pendency.due_date}
+                  onChange={(e) => setPendency({ ...pendency, due_date: e.target.value })}
+                />
+                <Select
+                  value={pendency.severity}
+                  onValueChange={(v) => setPendency({ ...pendency, severity: v })}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Gravidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="baixa">Baixa</SelectItem>
+                    <SelectItem value="media">Média</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  className="h-11"
+                  onClick={addPendency}
+                  disabled={savingPendency || !pendency.description.trim()}
+                >
+                  <Plus className="mr-2 size-4" />
+                  {savingPendency ? "Salvando…" : "Cadastrar pendência"}
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {(pendencies ?? []).length === 0 && (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    Nenhuma pendência registrada nesta atividade.
+                  </p>
+                )}
+                {(pendencies ?? []).map((p) => (
+                  <div
+                    key={p.id}
+                    className={`flex items-start gap-3 rounded-lg border p-3 ${
+                      p.status === "aberta" && p.severity === "alta"
+                        ? "border-ev-urgente/30 bg-ev-urgente-soft"
+                        : ""
+                    }`}
+                  >
+                    <Checkbox
+                      className="mt-1"
+                      checked={p.status === "resolvida"}
+                      onCheckedChange={(v) => togglePendency(p.id, Boolean(v))}
+                      aria-label="Marcar como resolvida"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={
+                          p.status === "resolvida"
+                            ? "text-sm text-muted-foreground line-through"
+                            : "text-sm font-medium"
+                        }
+                      >
+                        {p.description}
+                      </p>
+                      <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant="secondary">
+                          {p.severity === "alta" ? "Alta" : p.severity === "baixa" ? "Baixa" : "Média"}
+                        </Badge>
+                        {p.responsible ? <span>{p.responsible}</span> : null}
+                        {p.due_date ? <span>Prazo {formatDateBR(p.due_date)}</span> : null}
+                      </p>
+                    </div>
+                    {isManager && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removePendency(p.id)}
+                        aria-label="Excluir pendência"
+                      >
+                        <Trash2 className="size-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="equipe">
           <Card>
             <CardHeader>
