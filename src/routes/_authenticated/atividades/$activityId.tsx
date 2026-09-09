@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, Paperclip, Pencil, Plus, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, Paperclip, Pencil, Plus, Send, Trash2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useListOptions } from "@/hooks/use-list-options";
