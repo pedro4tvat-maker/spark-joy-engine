@@ -590,6 +590,9 @@ function ActivityDetailPage() {
         <TabsList className="flex-wrap">
           <TabsTrigger value="checklist">Checklist ({doneCount}/{checklist?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="equipe">Equipe ({team?.length ?? 0})</TabsTrigger>
+          <TabsTrigger value="pendencias">
+            Pendências ({(pendencies ?? []).filter((p) => p.status === "aberta").length})
+          </TabsTrigger>
           {isManager && <TabsTrigger value="itens">Itens / OS</TabsTrigger>}
           {isManager && <TabsTrigger value="financeiro">Financeiro</TabsTrigger>}
           <TabsTrigger value="comentarios">Comentários</TabsTrigger>
