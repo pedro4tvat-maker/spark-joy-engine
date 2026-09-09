@@ -275,6 +275,13 @@ function ActivityDetailPage() {
   const [uploadCategory, setUploadCategory] = useState("");
   const [uploading, setUploading] = useState(false);
   const [memberId, setMemberId] = useState("");
+  const [pendency, setPendency] = useState({
+    description: "",
+    responsible: "",
+    due_date: "",
+    severity: "media",
+  });
+  const [savingPendency, setSavingPendency] = useState(false);
 
   if (isLoading) return <p className="p-6 text-sm text-muted-foreground">Carregando…</p>;
   if (!activity)
