@@ -102,6 +102,16 @@ function periodRange(period: PeriodKey, base = new Date()) {
 
 const num = (v: number | null | undefined) => Number(v ?? 0);
 
+type PendencyRow = {
+  id: string;
+  description: string;
+  severity: string;
+  due_date: string | null;
+  responsible: string | null;
+  activity_id: string;
+  activities: { number: number | null; cities: { name: string } | null } | null;
+};
+
 type SaleRow = {
   total_amount: number | null;
   cash_amount: number | null;
@@ -183,6 +193,25 @@ function DashboardPage() {
       return rows ?? [];
     },
   });
+
+  /* ---- Pendências abertas (painel "Precisa de atenção") ---- */
+  const { data: pendencyData } = useQuery({
+    queryKey: ["dashboard-pendencies"],
+    queryFn: async () => {
+      const { data: rows, error } = await supabase
+        .from("activity_pendencies")
+        .select(
+          "id, description, severity, due_date, responsible, activity_id, activities(number, cities(name))",
+        )
+        .eq("status", "aberta")
+        .order("due_date", { nullsFirst: false })
+        .limit(8);
+      if (error) throw error;
+      return (rows ?? []) as unknown as PendencyRow[];
+    },
+  });
+
+  const openPendencies = pendencyData ?? [];
 
   const activities = data ?? [];
   const monthActivities = monthData ?? [];
