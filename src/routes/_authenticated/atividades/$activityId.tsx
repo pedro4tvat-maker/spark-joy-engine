@@ -199,6 +199,19 @@ function ActivityDetailPage() {
     },
   });
 
+  const { data: pendencies } = useQuery({
+    queryKey: ["pendencies", activityId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("activity_pendencies")
+        .select("*")
+        .eq("activity_id", activityId)
+        .order("status")
+        .order("due_date", { nullsFirst: false });
+      return data ?? [];
+    },
+  });
+
   const { data: employees } = useQuery({
     queryKey: ["employees-active"],
     queryFn: async () => {
@@ -262,6 +275,13 @@ function ActivityDetailPage() {
   const [uploadCategory, setUploadCategory] = useState("");
   const [uploading, setUploading] = useState(false);
   const [memberId, setMemberId] = useState("");
+  const [pendency, setPendency] = useState({
+    description: "",
+    responsible: "",
+    due_date: "",
+    severity: "media",
+  });
+  const [savingPendency, setSavingPendency] = useState(false);
 
   if (isLoading) return <p className="p-6 text-sm text-muted-foreground">Carregando…</p>;
   if (!activity)
@@ -310,6 +330,43 @@ function ActivityDetailPage() {
 
   async function removeMember(id: string) {
     await supabase.from("activity_team").delete().eq("id", id);
+    refresh();
+  }
+
+  /** Cadastra uma pendência aberta para esta atividade. */
+  async function addPendency() {
+    if (!pendency.description.trim()) return;
+    setSavingPendency(true);
+    const { error } = await supabase.from("activity_pendencies").insert({
+      activity_id: activityId,
+      description: pendency.description.trim().slice(0, 500),
+      responsible: pendency.responsible.trim() || null,
+      due_date: pendency.due_date || null,
+      severity: pendency.severity,
+      created_by: profile?.userId ?? null,
+    });
+    setSavingPendency(false);
+    if (error) return toast.error("Erro ao cadastrar pendência", { description: error.message });
+    setPendency({ description: "", responsible: "", due_date: "", severity: "media" });
+    toast.success("Pendência cadastrada");
+    refresh();
+  }
+
+  async function togglePendency(id: string, resolved: boolean) {
+    const { error } = await supabase
+      .from("activity_pendencies")
+      .update({
+        status: resolved ? "resolvida" : "aberta",
+        resolved_at: resolved ? new Date().toISOString() : null,
+      })
+      .eq("id", id);
+    if (error) return toast.error("Erro ao atualizar pendência", { description: error.message });
+    refresh();
+  }
+
+  async function removePendency(id: string) {
+    const { error } = await supabase.from("activity_pendencies").delete().eq("id", id);
+    if (error) return toast.error("Erro ao excluir pendência", { description: error.message });
     refresh();
   }
 
@@ -533,11 +590,121 @@ function ActivityDetailPage() {
         <TabsList className="flex-wrap">
           <TabsTrigger value="checklist">Checklist ({doneCount}/{checklist?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="equipe">Equipe ({team?.length ?? 0})</TabsTrigger>
+          <TabsTrigger value="pendencias">
+            Pendências ({(pendencies ?? []).filter((p) => p.status === "aberta").length})
+          </TabsTrigger>
           {isManager && <TabsTrigger value="itens">Itens / OS</TabsTrigger>}
           {isManager && <TabsTrigger value="financeiro">Financeiro</TabsTrigger>}
           <TabsTrigger value="comentarios">Comentários</TabsTrigger>
           <TabsTrigger value="anexos">Anexos</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="pendencias">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Pendências da atividade</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Textarea
+                  rows={2}
+                  maxLength={500}
+                  className="sm:col-span-2"
+                  placeholder="Descreva a pendência (ex.: faltou entregar 3 óculos da escola X)"
+                  value={pendency.description}
+                  onChange={(e) => setPendency({ ...pendency, description: e.target.value })}
+                />
+                <Input
+                  className="h-11"
+                  maxLength={120}
+                  placeholder="Responsável (opcional)"
+                  value={pendency.responsible}
+                  onChange={(e) => setPendency({ ...pendency, responsible: e.target.value })}
+                />
+                <Input
+                  className="h-11"
+                  type="date"
+                  value={pendency.due_date}
+                  onChange={(e) => setPendency({ ...pendency, due_date: e.target.value })}
+                />
+                <Select
+                  value={pendency.severity}
+                  onValueChange={(v) => setPendency({ ...pendency, severity: v })}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Gravidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="baixa">Baixa</SelectItem>
+                    <SelectItem value="media">Média</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  className="h-11"
+                  onClick={addPendency}
+                  disabled={savingPendency || !pendency.description.trim()}
+                >
+                  <Plus className="mr-2 size-4" />
+                  {savingPendency ? "Salvando…" : "Cadastrar pendência"}
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {(pendencies ?? []).length === 0 && (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    Nenhuma pendência registrada nesta atividade.
+                  </p>
+                )}
+                {(pendencies ?? []).map((p) => (
+                  <div
+                    key={p.id}
+                    className={`flex items-start gap-3 rounded-lg border p-3 ${
+                      p.status === "aberta" && p.severity === "alta"
+                        ? "border-ev-urgente/30 bg-ev-urgente-soft"
+                        : ""
+                    }`}
+                  >
+                    <Checkbox
+                      className="mt-1"
+                      checked={p.status === "resolvida"}
+                      onCheckedChange={(v) => togglePendency(p.id, Boolean(v))}
+                      aria-label="Marcar como resolvida"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={
+                          p.status === "resolvida"
+                            ? "text-sm text-muted-foreground line-through"
+                            : "text-sm font-medium"
+                        }
+                      >
+                        {p.description}
+                      </p>
+                      <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant="secondary">
+                          {p.severity === "alta" ? "Alta" : p.severity === "baixa" ? "Baixa" : "Média"}
+                        </Badge>
+                        {p.responsible ? <span>{p.responsible}</span> : null}
+                        {p.due_date ? <span>Prazo {formatDateBR(p.due_date)}</span> : null}
+                      </p>
+                    </div>
+                    {isManager && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removePendency(p.id)}
+                        aria-label="Excluir pendência"
+                      >
+                        <Trash2 className="size-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="equipe">
           <Card>
