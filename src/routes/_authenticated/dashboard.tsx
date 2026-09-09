@@ -693,26 +693,37 @@ function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Alertas</CardTitle>
+            <CardTitle className="text-base">Precisa de atenção</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {late.length === 0 && (
+            {openPendencies.length === 0 && (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                Sem pendências críticas.
+                Nenhuma pendência aberta.
               </p>
             )}
-            {late.map((a) => (
+            {openPendencies.map((p) => (
               <Link
-                key={a.id}
+                key={p.id}
                 to="/atividades/$activityId"
-                params={{ activityId: a.id }}
-                className="block rounded-lg border border-ev-urgente/30 bg-ev-urgente-soft px-3 py-2"
+                params={{ activityId: p.activity_id }}
+                className={`block rounded-lg border px-3 py-2 ${
+                  p.severity === "alta"
+                    ? "border-ev-urgente/30 bg-ev-urgente-soft"
+                    : "bg-card"
+                }`}
               >
-                <p className="text-sm font-medium text-ev-urgente">
-                  #{a.number} · {a.title || labelOf(ACTIVITY_TYPES, a.type)}
+                <p
+                  className={`text-sm font-medium ${
+                    p.severity === "alta" ? "text-ev-urgente" : ""
+                  }`}
+                >
+                  {p.description}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {formatDateBR(a.activity_date)} · {a.cities?.name ?? "sem cidade"}
+                  #{p.activities?.number ?? "—"} ·{" "}
+                  {p.activities?.cities?.name ?? "sem cidade"}
+                  {p.due_date ? ` · prazo ${formatDateBR(p.due_date)}` : ""}
+                  {p.responsible ? ` · ${p.responsible}` : ""}
                 </p>
               </Link>
             ))}
