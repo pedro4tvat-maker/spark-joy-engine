@@ -320,6 +320,56 @@ export type Database = {
           },
         ]
       }
+      activity_pendencies: {
+        Row: {
+          activity_id: string
+          created_at: string
+          created_by: string | null
+          description: string
+          due_date: string | null
+          id: string
+          resolved_at: string | null
+          responsible: string | null
+          severity: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          activity_id: string
+          created_at?: string
+          created_by?: string | null
+          description: string
+          due_date?: string | null
+          id?: string
+          resolved_at?: string | null
+          responsible?: string | null
+          severity?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          activity_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          due_date?: string | null
+          id?: string
+          resolved_at?: string | null
+          responsible?: string | null
+          severity?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_pendencies_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_team: {
         Row: {
           activity_id: string
