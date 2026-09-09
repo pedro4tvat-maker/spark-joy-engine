@@ -333,6 +333,43 @@ function ActivityDetailPage() {
     refresh();
   }
 
+  /** Cadastra uma pendência aberta para esta atividade. */
+  async function addPendency() {
+    if (!pendency.description.trim()) return;
+    setSavingPendency(true);
+    const { error } = await supabase.from("activity_pendencies").insert({
+      activity_id: activityId,
+      description: pendency.description.trim().slice(0, 500),
+      responsible: pendency.responsible.trim() || null,
+      due_date: pendency.due_date || null,
+      severity: pendency.severity,
+      created_by: profile?.userId ?? null,
+    });
+    setSavingPendency(false);
+    if (error) return toast.error("Erro ao cadastrar pendência", { description: error.message });
+    setPendency({ description: "", responsible: "", due_date: "", severity: "media" });
+    toast.success("Pendência cadastrada");
+    refresh();
+  }
+
+  async function togglePendency(id: string, resolved: boolean) {
+    const { error } = await supabase
+      .from("activity_pendencies")
+      .update({
+        status: resolved ? "resolvida" : "aberta",
+        resolved_at: resolved ? new Date().toISOString() : null,
+      })
+      .eq("id", id);
+    if (error) return toast.error("Erro ao atualizar pendência", { description: error.message });
+    refresh();
+  }
+
+  async function removePendency(id: string) {
+    const { error } = await supabase.from("activity_pendencies").delete().eq("id", id);
+    if (error) return toast.error("Erro ao excluir pendência", { description: error.message });
+    refresh();
+  }
+
 
 
   async function toggleCheck(id: string, done: boolean) {
