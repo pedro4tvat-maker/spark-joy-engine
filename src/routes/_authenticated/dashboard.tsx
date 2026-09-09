@@ -220,7 +220,7 @@ function DashboardPage() {
   const upcoming = monthActivities
     .filter((a) => a.activity_date > today && a.status !== "cancelada")
     .slice(0, 6);
-  const late = monthActivities.filter((a) => a.status === "atrasada");
+  
   const done = activities.filter((a) => a.status === "concluida");
   const pending = activities.filter(
     (a) => a.status === "agendada" || a.status === "em_andamento",
